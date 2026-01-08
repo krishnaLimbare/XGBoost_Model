@@ -1,0 +1,71 @@
+{
+    "confusion_matrix": {
+        "tn": 16107,
+        "fp": 1427,
+        "fn": 213,
+        "tp": 1483
+    },
+    "metrics": {
+        "accuracy": 0.9147165886635465,
+        "precision": 0.5096219931271477,
+        "recall": 0.8744103773584906,
+        "f1_score": 0.6439426834563613,
+        "specificity": 0.9186152617771187
+    },
+    "roc_auc": 0.9743328864029132,
+    "avg_precision": 0.8707270349925493,
+    "feature_importance": [
+        {
+            "Feature": "HbA1c_level",
+            "Importance": 0.4550739526748657
+        },
+        {
+            "Feature": "blood_glucose_level",
+            "Importance": 0.2801107168197632
+        },
+        {
+            "Feature": "age",
+            "Importance": 0.05840741842985153
+        },
+        {
+            "Feature": "hypertension",
+            "Importance": 0.048202697187662125
+        },
+        {
+            "Feature": "heart_disease",
+            "Importance": 0.04544896259903908
+        },
+        {
+            "Feature": "bmi",
+            "Importance": 0.02382812090218067
+        },
+        {
+            "Feature": "gender_Male",
+            "Importance": 0.017294609919190407
+        },
+        {
+            "Feature": "smoking_history_not current",
+            "Importance": 0.015752285718917847
+        },
+        {
+            "Feature": "smoking_history_never",
+            "Importance": 0.014997226186096668
+        },
+        {
+            "Feature": "smoking_history_former",
+            "Importance": 0.01456026267260313
+        },
+        {
+            "Feature": "smoking_history_ever",
+            "Importance": 0.01389566995203495
+        },
+        {
+            "Feature": "smoking_history_current",
+            "Importance": 0.01242818869650364
+        },
+        {
+            "Feature": "gender_Other",
+            "Importance": 0.0
+        }
+    ]
+}
