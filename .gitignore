@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+env/
+venv/
+
+# Data (exclude large files if needed, keeping raw here for now)
+# data/
+
+# Reports (excluding generated images and predictions)
+# reports/
+
+# IDE
+.vscode/
+.idea/

@@ -11,9 +11,61 @@ from sklearn.utils.class_weight import compute_class_weight
 from xgboost import XGBClassifier
 import pickle
 import json
+import argparse
 from collections import Counter
 import warnings
+import yaml
 warnings.filterwarnings('ignore')
+
+# =============================================================================
+# PATH CONFIGURATION
+# =============================================================================
+import os
+from datetime import datetime
+
+TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+DATA_RAW = os.path.join(PROJECT_ROOT, 'data', 'raw')
+DATA_PROCESSED = os.path.join(PROJECT_ROOT, 'data', 'processed')
+
+# Create timestamped run directories
+RUN_ID = f"run_{TIMESTAMP}"
+MODELS_DIR = os.path.join(PROJECT_ROOT, 'models', RUN_ID)
+REPORTS_DIR = os.path.join(PROJECT_ROOT, 'reports', RUN_ID)
+FIGURES_DIR = os.path.join(REPORTS_DIR, 'figures')
+
+# Ensure directories exist
+os.makedirs(DATA_PROCESSED, exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
+os.makedirs(FIGURES_DIR, exist_ok=True)
+
+# Load configuration
+CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config', 'config.yaml')
+with open(CONFIG_PATH, 'r') as file:
+    config = yaml.safe_load(file)
+
+# Check if running in CLI Prediction Mode
+parser = argparse.ArgumentParser(description='Diabetes Prediction Model')
+parser.add_argument('--gender', type=str, help='Gender (Female/Male)')
+parser.add_argument('--age', type=float, help='Age')
+parser.add_argument('--hypertension', type=int, help='Hypertension (0/1)')
+parser.add_argument('--heart_disease', type=int, help='Heart Disease (0/1)')
+parser.add_argument('--smoking_history', type=str, help='Smoking History')
+parser.add_argument('--bmi', type=float, help='BMI')
+parser.add_argument('--HbA1c_level', type=float, help='HbA1c Level')
+parser.add_argument('--blood_glucose_level', type=int, help='Blood Glucose Level')
+
+args, unknown = parser.parse_known_args()
+CLI_PROVIDED = any(v is not None for v in vars(args).values())
+VERBOSE = not CLI_PROVIDED
+
+if VERBOSE:
+    print(f"🚀 Starting run: {RUN_ID}")
+    print(f"📄 Loaded config from: {CONFIG_PATH}")
+    print(f"📂 Outputs will be saved to:")
+    print(f"   • Models: {MODELS_DIR}")
+    print(f"   • Reports: {REPORTS_DIR}")
 
 # Configuration
 pd.set_option('display.max_columns', None)
@@ -35,8 +87,9 @@ def save_plot(filename):
     """Save plot with standard settings"""
     plt.tight_layout()
     plt.savefig(filename, dpi=300, bbox_inches='tight')
-    plt.show()
-    print(f"✅ Saved: {filename}")
+    plt.savefig(filename, dpi=300, bbox_inches='tight')
+# plt.show()
+    # print(f"✅ Saved: {filename}")
 
 def calculate_metrics(y_true, y_pred):
     """Calculate all classification metrics at once"""
@@ -73,43 +126,43 @@ def plot_class_distribution(data, title, filename, labels=None):
 # PART 1: DATA LOADING & EXPLORATION
 # =============================================================================
 
-print_section("PART 1: DATA LOADING & EXPLORATION")
+# print_section("PART 1: DATA LOADING & EXPLORATION")
 
 # Load data
-df = pd.read_csv(r'C:\Users\Asus\Downloads\archive (6)\diabetes_prediction_dataset.csv')
-print(f"✅ Dataset loaded: {df.shape[0]:,} rows, {df.shape[1]} columns")
+df = pd.read_csv(os.path.join(DATA_RAW, 'diabetes_prediction_dataset.csv'))
+# print(f"✅ Dataset loaded: {df.shape[0]:,} rows, {df.shape[1]} columns")
 
 # Basic info
-print(f"\n📊 Data Overview:")
-print(f"  Shape: {df.shape}")
-print(f"  Missing values: {df.isnull().sum().sum()}")
-print(f"  Duplicates: {df.duplicated().sum():,} ({df.duplicated().sum()/len(df)*100:.2f}%)")
+# print(f"\n📊 Data Overview:")
+# print(f"  Shape: {df.shape}")
+# print(f"  Missing values: {df.isnull().sum().sum()}")
+# print(f"  Duplicates: {df.duplicated().sum():,} ({df.duplicated().sum()/len(df)*100:.2f}%)")
 
 # Target distribution
 target_counts = df['diabetes'].value_counts()
 imbalance_ratio = target_counts[0] / target_counts[1]
-print(f"\n📊 Target Distribution:")
-print(f"  No Diabetes: {target_counts[0]:,} ({target_counts[0]/len(df)*100:.2f}%)")
-print(f"  Diabetes: {target_counts[1]:,} ({target_counts[1]/len(df)*100:.2f}%)")
-print(f"  Imbalance Ratio: {imbalance_ratio:.2f}:1")
+# print(f"\n📊 Target Distribution:")
+# print(f"  No Diabetes: {target_counts[0]:,} ({target_counts[0]/len(df)*100:.2f}%)")
+# print(f"  Diabetes: {target_counts[1]:,} ({target_counts[1]/len(df)*100:.2f}%)")
+# print(f"  Imbalance Ratio: {imbalance_ratio:.2f}:1")
 
 # Feature info
 numerical_features = ['age', 'bmi', 'HbA1c_level', 'blood_glucose_level']
 categorical_features = ['gender', 'smoking_history']
 binary_features = ['hypertension', 'heart_disease']
 
-print(f"\n📊 Features: {df.shape[1]-1} ({len(numerical_features)} numerical, "
-      f"{len(categorical_features)} categorical, {len(binary_features)} binary)")
+# print(f"\n📊 Features: {df.shape[1]-1} ({len(numerical_features)} numerical, "
+#       f"{len(categorical_features)} categorical, {len(binary_features)} binary)")
 
 # =============================================================================
 # PART 2: EXPLORATORY DATA ANALYSIS (EDA)
 # =============================================================================
 
-print_section("PART 2: EXPLORATORY DATA ANALYSIS")
+# print_section("PART 2: EXPLORATORY DATA ANALYSIS")
 
 # Target visualization
 plot_class_distribution(df['diabetes'], 'Target Distribution', 
-                       'eda_target_distribution.png', ['No Diabetes', 'Diabetes'])
+                       os.path.join(FIGURES_DIR, 'eda_target_distribution.png'), ['No Diabetes', 'Diabetes'])
 
 # Numerical distributions
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
@@ -119,7 +172,7 @@ for idx, feature in enumerate(numerical_features):
     axes[idx].set_title(f'{feature} Distribution', fontsize=12, fontweight='bold')
     axes[idx].axvline(df[feature].mean(), color='red', linestyle='--', linewidth=2)
     axes[idx].axvline(df[feature].median(), color='green', linestyle='--', linewidth=2)
-save_plot('eda_numerical_distributions.png')
+save_plot(os.path.join(FIGURES_DIR, 'eda_numerical_distributions.png'))
 
 # Feature vs Target
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
@@ -128,7 +181,7 @@ for idx, feature in enumerate(numerical_features):
     df.boxplot(column=feature, by='diabetes', ax=axes[idx], patch_artist=True, grid=False)
     axes[idx].set_title(f'{feature} vs Diabetes', fontsize=12, fontweight='bold')
     axes[idx].get_figure().suptitle('')
-save_plot('eda_feature_vs_target.png')
+save_plot(os.path.join(FIGURES_DIR, 'eda_feature_vs_target.png'))
 
 # Correlation matrix
 numerical_df = df[numerical_features + binary_features + ['diabetes']]
@@ -138,22 +191,22 @@ plt.figure(figsize=(10, 8))
 sns.heatmap(correlation_matrix, annot=True, fmt='.2f', cmap='coolwarm', 
             center=0, square=True, linewidths=1)
 plt.title('Correlation Matrix', fontsize=14, fontweight='bold')
-save_plot('eda_correlation_matrix.png')
+save_plot(os.path.join(FIGURES_DIR, 'eda_correlation_matrix.png'))
 
-print(f"\n🎯 Top 3 Correlated Features with Target:")
+# print(f"\n🎯 Top 3 Correlated Features with Target:")
 top_features = correlation_matrix['diabetes'].abs().sort_values(ascending=False)[1:4]
-for i, (feat, corr) in enumerate(top_features.items(), 1):
-    print(f"  {i}. {feat}: {corr:.3f}")
+# for i, (feat, corr) in enumerate(top_features.items(), 1):
+#     print(f"  {i}. {feat}: {corr:.3f}")
 
 # =============================================================================
 # PART 3: DATA PREPROCESSING
 # =============================================================================
 
-print_section("PART 3: DATA PREPROCESSING")
+# print_section("PART 3: DATA PREPROCESSING")
 
 # Remove duplicates
 df_clean = df.drop_duplicates(keep='first')
-print(f"✅ Removed {len(df) - len(df_clean):,} duplicates → {len(df_clean):,} rows")
+# print(f"✅ Removed {len(df) - len(df_clean):,} duplicates → {len(df_clean):,} rows")
 
 # Separate features and target
 X = df_clean.drop('diabetes', axis=1)
@@ -161,44 +214,44 @@ y = df_clean['diabetes']
 
 # Encode categorical variables
 X_encoded = pd.get_dummies(X, columns=categorical_features, drop_first=True, dtype=int)
-print(f"✅ Encoded categorical features: {X.shape[1]} → {X_encoded.shape[1]} features")
+# print(f"✅ Encoded categorical features: {X.shape[1]} → {X_encoded.shape[1]} features")
 
 # Train-test split (stratified)
 X_train, X_test, y_train, y_test = train_test_split(
     X_encoded, y, test_size=0.2, random_state=42, stratify=y
 )
-print(f"✅ Train-test split: {len(X_train):,} train, {len(X_test):,} test")
+# print(f"✅ Train-test split: {len(X_train):,} train, {len(X_test):,} test")
 
 # Save preprocessed data
-X_train.to_csv('X_train.csv', index=False)
-X_test.to_csv('X_test.csv', index=False)
-y_train.to_csv('y_train.csv', index=False)
-y_test.to_csv('y_test.csv', index=False)
-print(f"✅ Saved: X_train.csv, X_test.csv, y_train.csv, y_test.csv")
+X_train.to_csv(os.path.join(DATA_PROCESSED, 'X_train.csv'), index=False)
+X_test.to_csv(os.path.join(DATA_PROCESSED, 'X_test.csv'), index=False)
+y_train.to_csv(os.path.join(DATA_PROCESSED, 'y_train.csv'), index=False)
+y_test.to_csv(os.path.join(DATA_PROCESSED, 'y_test.csv'), index=False)
+# print(f"✅ Saved: X_train.csv, X_test.csv, y_train.csv, y_test.csv")
 
 # =============================================================================
 # PART 4: HANDLING CLASS IMBALANCE
 # =============================================================================
 
-print_section("PART 4: HANDLING CLASS IMBALANCE")
+# print_section("PART 4: HANDLING CLASS IMBALANCE")
 
 # Current imbalance
 train_counts = Counter(y_train)
-print(f"📊 Training Set Before SMOTE:")
-print(f"  Class 0: {train_counts[0]:,}, Class 1: {train_counts[1]:,}")
-print(f"  Ratio: {train_counts[0]/train_counts[1]:.2f}:1")
+# print(f"📊 Training Set Before SMOTE:")
+# print(f"  Class 0: {train_counts[0]:,}, Class 1: {train_counts[1]:,}")
+# print(f"  Ratio: {train_counts[0]/train_counts[1]:.2f}:1")
 
 # Apply SMOTE
 smote = SMOTE(random_state=42, sampling_strategy='auto')
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
 balanced_counts = Counter(y_train_balanced)
-print(f"\n✅ After SMOTE:")
-print(f"  Class 0: {balanced_counts[0]:,}, Class 1: {balanced_counts[1]:,}")
-print(f"  Synthetic samples created: {len(y_train_balanced) - len(y_train):,}")
+# print(f"\n✅ After SMOTE:")
+# print(f"  Class 0: {balanced_counts[0]:,}, Class 1: {balanced_counts[1]:,}")
+# print(f"  Synthetic samples created: {len(y_train_balanced) - len(y_train):,}")
 
 # Calculate class weights (alternative)
 scale_pos_weight = train_counts[0] / train_counts[1]
-print(f"\n📊 XGBoost scale_pos_weight: {scale_pos_weight:.2f}")
+# print(f"\n📊 XGBoost scale_pos_weight: {scale_pos_weight:.2f}")
 
 # Visualization
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -208,52 +261,55 @@ axes[0].set_title('Before SMOTE', fontsize=14, fontweight='bold')
 axes[1].bar(['No Diabetes', 'Diabetes'], [balanced_counts[0], balanced_counts[1]], 
             color=['#2ecc71', '#e74c3c'], alpha=0.7, edgecolor='black')
 axes[1].set_title('After SMOTE', fontsize=14, fontweight='bold')
-save_plot('imbalance_handling.png')
+save_plot(os.path.join(FIGURES_DIR, 'imbalance_handling.png'))
 
 # Save balanced data
-X_train_balanced.to_csv('X_train_balanced.csv', index=False)
-y_train_balanced.to_csv('y_train_balanced.csv', index=False)
-print(f"✅ Saved: X_train_balanced.csv, y_train_balanced.csv")
+X_train_balanced.to_csv(os.path.join(DATA_PROCESSED, 'X_train_balanced.csv'), index=False)
+y_train_balanced.to_csv(os.path.join(DATA_PROCESSED, 'y_train_balanced.csv'), index=False)
+# print(f"✅ Saved: X_train_balanced.csv, y_train_balanced.csv")
 
 # =============================================================================
 # PART 5: TRAINING XGBOOST MODEL
 # =============================================================================
 
-print_section("PART 5: TRAINING XGBOOST MODEL")
+# print_section("PART 5: TRAINING XGBOOST MODEL")
 
-# Initialize model with class weights
+# Initialize model with class weights and config params
+model_params = config.get('model_params', {})
 model = XGBClassifier(
     random_state=42,
-    n_estimators=100,
-    learning_rate=0.3,
-    max_depth=6,
+    n_estimators=model_params.get('n_estimators', 100),
+    learning_rate=model_params.get('learning_rate', 0.3),
+    max_depth=model_params.get('max_depth', 6),
     eval_metric='logloss',
     scale_pos_weight=scale_pos_weight,
     use_label_encoder=False
 )
 
-print(f"🔧 Model Config: n_estimators=100, max_depth=6, scale_pos_weight={scale_pos_weight:.2f}")
+# print(f"🔧 Model Config: n_estimators=100, max_depth=6, scale_pos_weight={scale_pos_weight:.2f}")
 
 # Train model
-print(f"⏳ Training on {len(X_train):,} samples...")
+# Train model
+if VERBOSE:
+    print(f"⏳ Training on {len(X_train):,} samples...")
 from datetime import datetime
 start_time = datetime.now()
 model.fit(X_train, y_train)
 training_time = (datetime.now() - start_time).total_seconds()
-print(f"✅ Training complete in {training_time:.2f}s")
+# print(f"✅ Training complete in {training_time:.2f}s")
 
 # Predictions
 y_pred = model.predict(X_test)
 y_pred_proba = model.predict_proba(X_test)[:, 1]
-print(f"✅ Generated predictions for {len(X_test):,} test samples")
+# print(f"✅ Generated predictions for {len(X_test):,} test samples")
 
 # Quick metrics
 metrics = calculate_metrics(y_test, y_pred)
-print(f"\n📊 Performance Metrics:")
-print(f"  Accuracy:  {metrics['accuracy']:.4f} ({metrics['accuracy']*100:.2f}%)")
-print(f"  Precision: {metrics['precision']:.4f} ({metrics['precision']*100:.2f}%)")
-print(f"  Recall:    {metrics['recall']:.4f} ({metrics['recall']*100:.2f}%)")
-print(f"  F1-Score:  {metrics['f1_score']:.4f} ({metrics['f1_score']*100:.2f}%)")
+# print(f"\n📊 Performance Metrics:")
+# print(f"  Accuracy:  {metrics['accuracy']:.4f} ({metrics['accuracy']*100:.2f}%)")
+# print(f"  Precision: {metrics['precision']:.4f} ({metrics['precision']*100:.2f}%)")
+# print(f"  Recall:    {metrics['recall']:.4f} ({metrics['recall']*100:.2f}%)")
+# print(f"  F1-Score:  {metrics['f1_score']:.4f} ({metrics['f1_score']*100:.2f}%)")
 
 # Feature importance
 feature_importance = pd.DataFrame({
@@ -261,36 +317,37 @@ feature_importance = pd.DataFrame({
     'Importance': model.feature_importances_
 }).sort_values('Importance', ascending=False)
 
-print(f"\n🏆 Top 5 Important Features:")
-for idx, row in feature_importance.head(5).iterrows():
-    print(f"  {row['Feature']}: {row['Importance']:.4f}")
+# print(f"\n🏆 Top 5 Important Features:")
+# for idx, row in feature_importance.head(5).iterrows():
+#     print(f"  {row['Feature']}: {row['Importance']:.4f}")
 
 # Save model
-with open('diabetes_model.pkl', 'wb') as f:
+with open(os.path.join(MODELS_DIR, 'diabetes_model.pkl'), 'wb') as f:
     pickle.dump(model, f)
-print(f"\n✅ Model saved: diabetes_model.pkl")
+# print(f"\n✅ Model saved: diabetes_model.pkl")
 
 # Save predictions
 pd.DataFrame({
     'Actual': y_test.values,
     'Predicted': y_pred,
     'Probability': y_pred_proba
-}).to_csv('predictions.csv', index=False)
-print(f"✅ Predictions saved: predictions.csv")
+}).to_csv(os.path.join(REPORTS_DIR, 'predictions.csv'), index=False)
+# print(f"✅ Predictions saved: predictions.csv")
 
 # =============================================================================
 # PART 6: DETAILED MODEL EVALUATION
 # =============================================================================
 
-print_section("PART 6: MODEL EVALUATION")
+# print_section("PART 6: MODEL EVALUATION")
 
 # Confusion Matrix
 cm = metrics['confusion_matrix']
 tn, fp, fn, tp = cm['tn'], cm['fp'], cm['fn'], cm['tp']
 
-print(f"\n📊 Confusion Matrix:")
-print(f"  True Negatives:  {tn:,}  |  False Positives: {fp:,}")
-print(f"  False Negatives: {fn:,}  |  True Positives:  {tp:,}")
+if VERBOSE:
+    print(f"\n📊 Confusion Matrix:")
+    print(f"  True Negatives:  {tn:,}  |  False Positives: {fp:,}")
+    print(f"  False Negatives: {fn:,}  |  True Positives:  {tp:,}")
 
 fig, ax = plt.subplots(figsize=(10, 8))
 cm_array = np.array([[tn, fp], [fn, tp]])
@@ -299,7 +356,7 @@ sns.heatmap(cm_array, annot=True, fmt='d', cmap='Blues',
             yticklabels=['Actually Healthy', 'Actually Diabetic'],
             annot_kws={'size': 14, 'weight': 'bold'}, ax=ax)
 ax.set_title('Confusion Matrix', fontsize=16, fontweight='bold')
-save_plot('confusion_matrix.png')
+save_plot(os.path.join(FIGURES_DIR, 'confusion_matrix.png'))
 
 # ROC Curve
 fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
@@ -312,9 +369,9 @@ ax.set_xlabel('False Positive Rate', fontsize=12, fontweight='bold')
 ax.set_ylabel('True Positive Rate', fontsize=12, fontweight='bold')
 ax.set_title('ROC Curve', fontsize=14, fontweight='bold')
 ax.legend(loc="lower right")
-save_plot('roc_curve.png')
+save_plot(os.path.join(FIGURES_DIR, 'roc_curve.png'))
 
-print(f"\n📊 ROC-AUC Score: {roc_auc:.4f}")
+# print(f"\n📊 ROC-AUC Score: {roc_auc:.4f}")
 
 # Precision-Recall Curve
 precision_curve, recall_curve, _ = precision_recall_curve(y_test, y_pred_proba)
@@ -327,11 +384,13 @@ ax.set_xlabel('Recall', fontsize=12, fontweight='bold')
 ax.set_ylabel('Precision', fontsize=12, fontweight='bold')
 ax.set_title('Precision-Recall Curve', fontsize=14, fontweight='bold')
 ax.legend()
-save_plot('precision_recall_curve.png')
+save_plot(os.path.join(FIGURES_DIR, 'precision_recall_curve.png'))
 
 # Classification Report
-print(f"\n📋 Classification Report:")
-print(classification_report(y_test, y_pred, target_names=['Healthy', 'Diabetic'], digits=4))
+# Classification Report
+if VERBOSE:
+    print(f"\n📋 Classification Report:")
+    print(classification_report(y_test, y_pred, target_names=['Healthy', 'Diabetic'], digits=4))
 
 # Save evaluation results
 evaluation_results = {
@@ -342,15 +401,23 @@ evaluation_results = {
     'feature_importance': feature_importance.to_dict('records')
 }
 
-with open('evaluation_results.json', 'w') as f:
+with open(os.path.join(REPORTS_DIR, 'evaluation_results.json'), 'w') as f:
     json.dump(evaluation_results, f, indent=4)
-print(f"\n✅ Saved: evaluation_results.json")
+# print(f"\n✅ Saved: evaluation_results.json")
 
 # =============================================================================
 # FINAL SUMMARY
 # =============================================================================
 
-print_section("PIPELINE COMPLETED SUCCESSFULLY!")
+
+
+
+
+# =============================================================================
+# FINAL SUMMARY
+# =============================================================================
+
+# print_section("PIPELINE COMPLETED SUCCESSFULLY!")
 
 summary = f"""
 📋 FINAL SUMMARY
@@ -400,4 +467,73 @@ summary = f"""
 ✅ Baseline XGBoost model ready for deployment or tuning!
 """
 
-print(summary)
+if VERBOSE:
+    print(summary)
+
+# =============================================================================
+# PART 7: PATIENT PREDICTION FROM CONFIG OR CLI
+# =============================================================================
+
+def get_patient_data(config):
+    # Args already parsed at top level
+    if CLI_PROVIDED:
+        # Validate that all required fields are present
+        required_fields = ['gender', 'age', 'hypertension', 'heart_disease', 
+                           'smoking_history', 'bmi', 'HbA1c_level', 'blood_glucose_level']
+        missing = [f for f in required_fields if getattr(args, f) is None]
+        
+        if missing:
+            print(f"\n⚠️  Missing CLI arguments for: {', '.join(missing)}")
+            print("   Using config data instead.")
+            # If fallback to config, allow verbose? No, stick to consistent behavior or force verbose
+            return config.get('test_patient')
+            
+        print_section("PART 7: PATIENT PREDICTION FROM CLI ARGS")
+        return {
+            'gender': args.gender,
+            'age': args.age,
+            'hypertension': args.hypertension,
+            'heart_disease': args.heart_disease,
+            'smoking_history': args.smoking_history,
+            'bmi': args.bmi,
+            'HbA1c_level': args.HbA1c_level,
+            'blood_glucose_level': args.blood_glucose_level
+        }
+    
+    if 'test_patient' in config:
+        if VERBOSE:
+             print_section("PART 7: PATIENT PREDICTION FROM CONFIG")
+        return config['test_patient']
+        
+    return None
+
+patient_data = get_patient_data(config)
+
+if patient_data:
+    if VERBOSE or CLI_PROVIDED:
+        print(f"👤 Patient Data:")
+        print(json.dumps(patient_data, indent=2))
+    
+    # Create DataFrame from patient data
+    patient_df = pd.DataFrame([patient_data])
+    
+    # Preprocess: One-hot encode using the same method (align with training columns)
+    patient_encoded = pd.get_dummies(patient_df, columns=categorical_features, drop_first=True, dtype=int)
+    
+    # Align columns
+    missing_cols = set(X_train.columns) - set(patient_encoded.columns)
+    for c in missing_cols:
+        patient_encoded[c] = 0
+        
+    # Ensure order matches
+    patient_encoded = patient_encoded[X_train.columns]
+    
+    # Predict
+    prediction = model.predict(patient_encoded)[0]
+    probability = model.predict_proba(patient_encoded)[0][1]
+    
+    result = "DIABETES 🔴" if prediction == 1 else "NO DIABETES 🟢"
+    print(f"\n🔮 Prediction Result: {result}")
+    print(f"📊 Probability: {probability:.2%}")
+else:
+    print("\n⚠️ No patient data found (CLI or Config)")
