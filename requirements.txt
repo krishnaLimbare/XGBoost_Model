@@ -5,5 +5,5 @@ seaborn
 scikit-learn
 imbalanced-learn
 xgboost
-
+flask
 PyYAML

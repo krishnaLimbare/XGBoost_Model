@@ -1,0 +1,26 @@
+Unique Values:
+
+--- gender ---
+['Female' 'Male' 'Other']
+
+--- smoking_history ---
+['never' 'No Info' 'current' 'former' 'ever' 'not current']
+
+--- drinking ---
+['non_drinker' 'moderate' 'light' 'heavy']
+
+--- occupation ---
+['retired' 'manual_labor' 'self_employed' 'professional' 'office_worker'
+ 'service_industry' 'student' 'healthcare']
+
+--- altitude ---
+['medium_500-1500m' 'low_0-500m' 'high_1500m_plus']
+
+--- family_history ---
+[1 0]
+
+--- hypertension ---
+[0 1]
+
+--- heart_disease ---
+[1 0]

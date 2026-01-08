@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diabi - Advanced Diabetes Prediction</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <div class="main-container">
+        <!-- Decoration Circles -->
+        <div class="circle circle-1"></div>
+        <div class="circle circle-2"></div>
+
+        <div class="glass-card">
+            <header>
+                <div class="logo">
+                    <i class="fa-solid fa-heart-pulse"></i>
+                    <h1>Diabi</h1>
+                </div>
+                <p>Advanced AI-Powered Diabetes Risk Assessment</p>
+            </header>
+
+            <form id="predictionForm">
+                <div class="form-grid">
+                    <!-- Personal Info -->
+                    <div class="input-group">
+                        <label>Gender</label>
+                        <select name="gender" required>
+                            <option value="" disabled selected>Select Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Age</label>
+                        <input type="number" name="age" placeholder="e.g., 45" min="1" max="120" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label>BMI</label>
+                        <input type="number" name="bmi" placeholder="e.g., 24.5" step="0.1" min="10" max="100" required>
+                    </div>
+
+                    <!-- Health History -->
+                    <div class="input-group">
+                        <label>Hypertension</label>
+                        <select name="hypertension" required>
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Heart Disease</label>
+                        <select name="heart_disease" required>
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Family History</label>
+                        <select name="family_history" required>
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                        </select>
+                    </div>
+
+                    <!-- Lifestyle -->
+                    <div class="input-group">
+                        <label>Smoking History</label>
+                        <select name="smoking_history" required>
+                            <option value="never">Never</option>
+                            <option value="No Info">No Info</option>
+                            <option value="current">Current</option>
+                            <option value="former">Former</option>
+                            <option value="ever">Ever</option>
+                            <option value="not current">Not Current</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Drinking Habit</label>
+                        <select name="drinking" required>
+                            <option value="non_drinker">Non Drinker</option>
+                            <option value="light">Light</option>
+                            <option value="moderate">Moderate</option>
+                            <option value="heavy">Heavy</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Occupation</label>
+                        <select name="occupation" required>
+                            <option value="office_worker">Office Worker</option>
+                            <option value="manual_labor">Manual Labor</option>
+                            <option value="professional">Professional</option>
+                            <option value="service_industry">Service Industry</option>
+                            <option value="healthcare">Healthcare</option>
+                            <option value="self_employed">Self Employed</option>
+                            <option value="student">Student</option>
+                            <option value="retired">Retired</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Altitude</label>
+                        <select name="altitude" required>
+                            <option value="low_0-500m">Low (0-500m)</option>
+                            <option value="medium_500-1500m">Moderate (500-1500m)</option>
+                            <option value="high_1500m_plus">High (1500m+)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" id="predictBtn">
+                    <span>Analyze Risk</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </form>
+
+            <!-- Result Modal / Overlay -->
+            <div id="resultContainer" class="result-container hidden">
+                <div class="result-content">
+                    <div id="resultIcon" class="result-icon"></div>
+                    <h2 id="resultTitle">Analyzing...</h2>
+                    <div class="probability-meter">
+                        <div class="meter-bg">
+                            <div id="meterFill" class="meter-fill"></div>
+                        </div>
+                        <p id="probabilityText">0% Risk Probability</p>
+                    </div>
+                    <button id="resetBtn" class="secondary-btn">New Assessment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+
+</html>
