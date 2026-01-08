@@ -10,5 +10,7 @@ test_patient:
   heart_disease: 1
   smoking_history: "current"
   bmi: 35.0
-  HbA1c_level: 8.5
-  blood_glucose_level: 220
+  occupation: "manual_labor"
+  family_history: 1
+  drinking: "heavy"
+  altitude: "low_0-500m"

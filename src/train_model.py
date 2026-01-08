@@ -31,7 +31,7 @@ DATA_PROCESSED = os.path.join(PROJECT_ROOT, 'data', 'processed')
 
 # Create timestamped run directories
 RUN_ID = f"run_{TIMESTAMP}"
-MODELS_DIR = os.path.join(PROJECT_ROOT, 'models', RUN_ID)
+MODELS_DIR = os.path.join(PROJECT_ROOT, 'models')  # Fixed path, no timestamp
 REPORTS_DIR = os.path.join(PROJECT_ROOT, 'reports', RUN_ID)
 FIGURES_DIR = os.path.join(REPORTS_DIR, 'figures')
 
@@ -53,8 +53,11 @@ parser.add_argument('--hypertension', type=int, help='Hypertension (0/1)')
 parser.add_argument('--heart_disease', type=int, help='Heart Disease (0/1)')
 parser.add_argument('--smoking_history', type=str, help='Smoking History')
 parser.add_argument('--bmi', type=float, help='BMI')
-parser.add_argument('--HbA1c_level', type=float, help='HbA1c Level')
-parser.add_argument('--blood_glucose_level', type=int, help='Blood Glucose Level')
+parser.add_argument('--occupation', type=str, help='Occupation')
+parser.add_argument('--family_history', type=int, help='Family History of Diabetes (0/1)')
+parser.add_argument('--drinking', type=str, help='Drinking habit')
+parser.add_argument('--altitude', type=str, help='Altitude')
+# Removed: HbA1c_level and blood_glucose_level - model now predicts without these
 
 args, unknown = parser.parse_known_args()
 CLI_PROVIDED = any(v is not None for v in vars(args).values())
@@ -128,9 +131,12 @@ def plot_class_distribution(data, title, filename, labels=None):
 
 # print_section("PART 1: DATA LOADING & EXPLORATION")
 
-# Load data
-df = pd.read_csv(os.path.join(DATA_RAW, 'diabetes_prediction_dataset.csv'))
+# Load data (using augmented dataset)
+df = pd.read_csv(os.path.join(DATA_RAW, 'diabetes_prediction_dataset_augmented.csv'))
 # print(f"✅ Dataset loaded: {df.shape[0]:,} rows, {df.shape[1]} columns")
+
+# Drop HbA1c_level and blood_glucose_level for prediction without these features
+df = df.drop(columns=['HbA1c_level', 'blood_glucose_level'], errors='ignore')
 
 # Basic info
 # print(f"\n📊 Data Overview:")
@@ -146,10 +152,10 @@ imbalance_ratio = target_counts[0] / target_counts[1]
 # print(f"  Diabetes: {target_counts[1]:,} ({target_counts[1]/len(df)*100:.2f}%)")
 # print(f"  Imbalance Ratio: {imbalance_ratio:.2f}:1")
 
-# Feature info
-numerical_features = ['age', 'bmi', 'HbA1c_level', 'blood_glucose_level']
-categorical_features = ['gender', 'smoking_history']
-binary_features = ['hypertension', 'heart_disease']
+# Feature info (HbA1c_level and blood_glucose_level excluded, new augmented features added)
+numerical_features = ['age', 'bmi']
+categorical_features = ['gender', 'smoking_history', 'occupation', 'drinking', 'altitude']
+binary_features = ['hypertension', 'heart_disease', 'family_history']
 
 # print(f"\n📊 Features: {df.shape[1]-1} ({len(numerical_features)} numerical, "
 #       f"{len(categorical_features)} categorical, {len(binary_features)} binary)")
@@ -477,9 +483,9 @@ if VERBOSE:
 def get_patient_data(config):
     # Args already parsed at top level
     if CLI_PROVIDED:
-        # Validate that all required fields are present
+        # Validate that all required fields are present (augmented dataset features)
         required_fields = ['gender', 'age', 'hypertension', 'heart_disease', 
-                           'smoking_history', 'bmi', 'HbA1c_level', 'blood_glucose_level']
+                           'smoking_history', 'bmi', 'occupation', 'family_history', 'drinking', 'altitude']
         missing = [f for f in required_fields if getattr(args, f) is None]
         
         if missing:
@@ -496,8 +502,10 @@ def get_patient_data(config):
             'heart_disease': args.heart_disease,
             'smoking_history': args.smoking_history,
             'bmi': args.bmi,
-            'HbA1c_level': args.HbA1c_level,
-            'blood_glucose_level': args.blood_glucose_level
+            'occupation': args.occupation,
+            'family_history': args.family_history,
+            'drinking': args.drinking,
+            'altitude': args.altitude
         }
     
     if 'test_patient' in config:
