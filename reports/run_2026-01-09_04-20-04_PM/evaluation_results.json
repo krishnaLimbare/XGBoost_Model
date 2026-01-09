@@ -1,0 +1,131 @@
+{
+    "confusion_matrix": {
+        "tn": 13657,
+        "fp": 2474,
+        "fn": 674,
+        "tp": 996
+    },
+    "metrics": {
+        "accuracy": 0.8231560024717712,
+        "precision": 0.2870317002881844,
+        "recall": 0.5964071856287425,
+        "f1_score": 0.38754863813229573,
+        "specificity": 0.8466307110532515
+    },
+    "roc_auc": 0.8258113492189881,
+    "avg_precision": 0.3362811027230147,
+    "feature_importance": [
+        {
+            "Feature": "Age_BMI_Interaction",
+            "Importance": 0.20230115950107574
+        },
+        {
+            "Feature": "Metabolic_Strain",
+            "Importance": 0.12878508865833282
+        },
+        {
+            "Feature": "age",
+            "Importance": 0.12260499596595764
+        },
+        {
+            "Feature": "occupation_student",
+            "Importance": 0.08494940400123596
+        },
+        {
+            "Feature": "occupation_retired",
+            "Importance": 0.08077531307935715
+        },
+        {
+            "Feature": "Comorbidity_Score",
+            "Importance": 0.06646675616502762
+        },
+        {
+            "Feature": "hypertension",
+            "Importance": 0.03662661090493202
+        },
+        {
+            "Feature": "heart_disease",
+            "Importance": 0.03551718220114708
+        },
+        {
+            "Feature": "family_history",
+            "Importance": 0.03223785385489464
+        },
+        {
+            "Feature": "bmi",
+            "Importance": 0.03157791495323181
+        },
+        {
+            "Feature": "altitude_medium_500-1500m",
+            "Importance": 0.026342196390032768
+        },
+        {
+            "Feature": "smoking_history_former",
+            "Importance": 0.021139519289135933
+        },
+        {
+            "Feature": "drinking_light",
+            "Importance": 0.02087303437292576
+        },
+        {
+            "Feature": "Lifestyle_Risk",
+            "Importance": 0.01910974457859993
+        },
+        {
+            "Feature": "gender_Male",
+            "Importance": 0.01759037747979164
+        },
+        {
+            "Feature": "smoking_history_ever",
+            "Importance": 0.0151338716968894
+        },
+        {
+            "Feature": "drinking_moderate",
+            "Importance": 0.013573069125413895
+        },
+        {
+            "Feature": "altitude_low_0-500m",
+            "Importance": 0.011921635828912258
+        },
+        {
+            "Feature": "drinking_non_drinker",
+            "Importance": 0.011433655396103859
+        },
+        {
+            "Feature": "smoking_history_current",
+            "Importance": 0.011344376020133495
+        },
+        {
+            "Feature": "smoking_history_never",
+            "Importance": 0.005090995691716671
+        },
+        {
+            "Feature": "occupation_office_worker",
+            "Importance": 0.0026464490219950676
+        },
+        {
+            "Feature": "occupation_manual_labor",
+            "Importance": 0.001958813751116395
+        },
+        {
+            "Feature": "gender_Other",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "occupation_professional",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "smoking_history_not current",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "occupation_self_employed",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "occupation_service_industry",
+            "Importance": 0.0
+        }
+    ]
+}

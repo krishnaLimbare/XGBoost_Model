@@ -208,93 +208,164 @@ top_features = correlation_matrix['diabetes'].abs().sort_values(ascending=False)
 # PART 3: DATA PREPROCESSING
 # =============================================================================
 
-# print_section("PART 3: DATA PREPROCESSING")
+# =============================================================================
+# FEATURE ENGINEERING FUNCTION (SHARED)
+# =============================================================================
+def engineer_features(df_in):
+    """
+    Creates composite features and proxy biomarkers.
+    Must be identical in train_model.py and app.py
+    """
+    df_out = df_in.copy()
+    
+    # 1. Comorbidity Score
+    # Sum of binary conditions
+    df_out['Comorbidity_Score'] = df_out['hypertension'] + df_out['heart_disease'] + df_out['family_history']
+    
+    # 2. Age-BMI Interaction (Obesity impact worsens with age)
+    df_out['Age_BMI_Interaction'] = df_out['age'] * df_out['bmi']
+    
+    # 3. Lifestyle Risk Score
+    # Map smoking
+    smoking_map = {
+        'never': 0, 'No Info': 0.5, 'current': 2, 'former': 1, 
+        'ever': 1, 'not current': 0.5
+    }
+    df_out['smoking_score'] = df_out['smoking_history'].map(smoking_map).fillna(0)
+    
+    # Map drinking
+    drinking_map = {
+        'non_drinker': 0, 'light': 0.5, 'moderate': 1, 'heavy': 2
+    }
+    df_out['drinking_score'] = df_out['drinking'].map(drinking_map).fillna(0)
+    
+    # Occupation sedentary score (Subjective estimation)
+    occ_map = {
+        'office_worker': 2, 'student': 2, 'retired': 1, 'unemployed': 1,
+        'healthcare': 1, 'professional': 2, 'service_industry': 0, 
+        'manual_labor': 0, 'self_employed': 1
+    }
+    # Handle occupation map carefully if column exists
+    if 'occupation' in df_out.columns:
+         df_out['sedentary_score'] = df_out['occupation'].map(occ_map).fillna(1)
+    else:
+         df_out['sedentary_score'] = 1 # Default
+         
+    df_out['Lifestyle_Risk'] = df_out['smoking_score'] + df_out['drinking_score'] + df_out['sedentary_score']
+    
+    # 4. Metabolic Strain Index (Proxy)
+    # (BMI * Age) / (Height Proxy? Don't have height). 
+    # Let's use log(Age) * BMI
+    df_out['Metabolic_Strain'] = np.log1p(df_out['age']) * df_out['bmi']
+    
+    # Drop intermediate columns if desired, or keep them. 
+    # Dropping text columns happens later in encoding, but we can drop temp scores if we want.
+    df_out = df_out.drop(columns=['smoking_score', 'drinking_score', 'sedentary_score'], errors='ignore')
+    
+    return df_out
+
+# Apply Feature Engineering
+df = engineer_features(df)
+print("✅ Feature Engineering Complete: Added Composite Features")
+
+# =============================================================================
+# DATA PREPROCESSING (Updated for new features)
+# =============================================================================
 
 # Remove duplicates
 df_clean = df.drop_duplicates(keep='first')
-# print(f"✅ Removed {len(df) - len(df_clean):,} duplicates → {len(df_clean):,} rows")
 
 # Separate features and target
 X = df_clean.drop('diabetes', axis=1)
 y = df_clean['diabetes']
 
+# Helper to identify new columns
+new_numerical = ['Comorbidity_Score', 'Age_BMI_Interaction', 'Lifestyle_Risk', 'Metabolic_Strain']
+# Add to numerical list for EDA if needed, but primarily for model
+
 # Encode categorical variables
 X_encoded = pd.get_dummies(X, columns=categorical_features, drop_first=True, dtype=int)
-# print(f"✅ Encoded categorical features: {X.shape[1]} → {X_encoded.shape[1]} features")
 
 # Train-test split (stratified)
 X_train, X_test, y_train, y_test = train_test_split(
     X_encoded, y, test_size=0.2, random_state=42, stratify=y
 )
-# print(f"✅ Train-test split: {len(X_train):,} train, {len(X_test):,} test")
-
-# Save preprocessed data
-X_train.to_csv(os.path.join(DATA_PROCESSED, 'X_train.csv'), index=False)
-X_test.to_csv(os.path.join(DATA_PROCESSED, 'X_test.csv'), index=False)
-y_train.to_csv(os.path.join(DATA_PROCESSED, 'y_train.csv'), index=False)
-y_test.to_csv(os.path.join(DATA_PROCESSED, 'y_test.csv'), index=False)
-# print(f"✅ Saved: X_train.csv, X_test.csv, y_train.csv, y_test.csv")
-
-# =============================================================================
-# PART 4: HANDLING CLASS IMBALANCE
-# =============================================================================
-
-# print_section("PART 4: HANDLING CLASS IMBALANCE")
-
-# Current imbalance
-train_counts = Counter(y_train)
-# print(f"📊 Training Set Before SMOTE:")
-# print(f"  Class 0: {train_counts[0]:,}, Class 1: {train_counts[1]:,}")
-# print(f"  Ratio: {train_counts[0]/train_counts[1]:.2f}:1")
 
 # Apply SMOTE
 smote = SMOTE(random_state=42, sampling_strategy='auto')
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
-balanced_counts = Counter(y_train_balanced)
-# print(f"\n✅ After SMOTE:")
-# print(f"  Class 0: {balanced_counts[0]:,}, Class 1: {balanced_counts[1]:,}")
-# print(f"  Synthetic samples created: {len(y_train_balanced) - len(y_train):,}")
-
-# Calculate class weights (alternative)
-scale_pos_weight = train_counts[0] / train_counts[1]
-# print(f"\n📊 XGBoost scale_pos_weight: {scale_pos_weight:.2f}")
-
-# Visualization
-fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-axes[0].bar(['No Diabetes', 'Diabetes'], [train_counts[0], train_counts[1]], 
-            color=['#2ecc71', '#e74c3c'], alpha=0.7, edgecolor='black')
-axes[0].set_title('Before SMOTE', fontsize=14, fontweight='bold')
-axes[1].bar(['No Diabetes', 'Diabetes'], [balanced_counts[0], balanced_counts[1]], 
-            color=['#2ecc71', '#e74c3c'], alpha=0.7, edgecolor='black')
-axes[1].set_title('After SMOTE', fontsize=14, fontweight='bold')
-save_plot(os.path.join(FIGURES_DIR, 'imbalance_handling.png'))
-
-# Save balanced data
-X_train_balanced.to_csv(os.path.join(DATA_PROCESSED, 'X_train_balanced.csv'), index=False)
-y_train_balanced.to_csv(os.path.join(DATA_PROCESSED, 'y_train_balanced.csv'), index=False)
-# print(f"✅ Saved: X_train_balanced.csv, y_train_balanced.csv")
 
 # =============================================================================
-# PART 5: TRAINING XGBOOST MODEL
+# PART 5: HYPERPARAMETER TUNING & TRAINING
 # =============================================================================
 
-# print_section("PART 5: TRAINING XGBOOST MODEL")
+print_section("PART 5: HYPERPARAMETER TUNING & TRAINING")
 
-# Initialize model with class weights and config params
-model_params = config.get('model_params', {})
-model = XGBClassifier(
+from sklearn.model_selection import RandomizedSearchCV
+
+# Define constraints map for new features?
+# We need to re-verify column names in X_train_balanced to map constraints correctly.
+# Existing constraints:
+common_constraints = {
+        'age': 1,
+        'bmi': 1,
+        'hypertension': 1,
+        'heart_disease': 1,
+        'family_history': 1,
+        'Comorbidity_Score': 1,       # Higher = Higher Risk
+        'Age_BMI_Interaction': 1,     # Higher = Higher Risk
+        'Lifestyle_Risk': 1,          # Higher = Higher Risk
+        'Metabolic_Strain': 1         # Higher = Higher Risk
+}
+
+# We need to construct the constraint dict based on actual columns present
+monotone_constraints = {}
+for col in X_train_balanced.columns:
+    if col in common_constraints:
+        monotone_constraints[col] = common_constraints[col]
+    else:
+        monotone_constraints[col] = 0 # No constraint
+
+# Initialize base model
+xgb = XGBClassifier(
     random_state=42,
-    n_estimators=model_params.get('n_estimators', 100),
-    learning_rate=model_params.get('learning_rate', 0.3),
-    max_depth=model_params.get('max_depth', 6),
     eval_metric='logloss',
-    scale_pos_weight=5.0, # Moderately boosted weight to improve sensitivity without breaking calibration
-    use_label_encoder=False
+    use_label_encoder=False,
+    monotone_constraints=monotone_constraints
 )
 
-# print(f"🔧 Model Config: n_estimators=100, max_depth=6, scale_pos_weight=5.0 (Sensitivity Boost)")
+# Define search space
+param_dist = {
+    'n_estimators': [100, 200, 300],
+    'learning_rate': [0.01, 0.05, 0.1, 0.2],
+    'max_depth': [3, 4, 5, 6, 8],
+    'subsample': [0.6, 0.8, 1.0],
+    'colsample_bytree': [0.6, 0.8, 1.0],
+    'scale_pos_weight': [5.0] # FORCED HIGH SENSITIVITY: Do not tune this down.
+}
 
-# Train model
+print("⏳ Starting Randomized Search for Hyperparameters (Sensitivity Locked)...")
+search = RandomizedSearchCV(
+    estimator=xgb,
+    param_distributions=param_dist,
+    n_iter=15, # Number of combinations to try
+    scoring='recall', # Focus on catching cases (Sensitivity)
+    cv=3,
+    verbose=1,
+    random_state=42,
+    n_jobs=-1
+)
+
+search.fit(X_train_balanced, y_train_balanced)
+
+print(f"\n🏆 Best Parameters: {search.best_params_}")
+print(f"🏆 Best Recall Score: {search.best_score_:.4f}")
+
+# Use best model
+model = search.best_estimator_
+
+# model = XGBClassifier(...) # REPLACED BY TUNING ABOVE
+
 # Train model
 if VERBOSE:
     print(f"⏳ Training on {len(X_train):,} samples...")
