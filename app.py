@@ -22,15 +22,30 @@ with open(MODEL_PATH, 'rb') as f:
     model = pickle.load(f)
 
 # Load Training Columns to ensure correct One-Hot Encoding
-print(f"Loading training data features from: {X_TRAIN_PATH}")
+model_columns = []
+
+# Try to get features from model first (Most reliable)
 try:
-    X_train_df = pd.read_csv(X_TRAIN_PATH)
-    model_columns = X_train_df.columns.tolist()
-    print(f"Model expects these {len(model_columns)} columns.")
+    if hasattr(model, 'feature_names_in_'):
+        print("Loading feature names directly from model...")
+        model_columns = model.feature_names_in_.tolist()
+    elif hasattr(model, 'get_booster'):
+        print("Loading feature names from XGBoost booster...")
+        model_columns = model.get_booster().feature_names
 except Exception as e:
-    print(f"Error loading X_train.csv: {e}")
-    print("WARNING: Feature alignment might fail if X_train.csv is missing.")
-    model_columns = []
+    print(f"Could not extract feature names from model: {e}")
+
+# Fallback to X_train.csv if needed
+if not model_columns:
+    print(f"Loading training data features from: {X_TRAIN_PATH}")
+    try:
+        X_train_df = pd.read_csv(X_TRAIN_PATH)
+        model_columns = X_train_df.columns.tolist()
+    except Exception as e:
+        print(f"Error loading X_train.csv: {e}")
+        print("WARNING: Feature alignment might fail if X_train.csv is missing or stale.")
+
+print(f"Model expects these {len(model_columns)} columns.")
 
 # Define Categorical Features (Must match training)
 CATEGORICAL_FEATURES = ['gender', 'smoking_history', 'occupation', 'drinking', 'altitude']
@@ -86,6 +101,15 @@ def engineer_features(df_in):
     
     # 4. Metabolic Strain Index
     df_out['Metabolic_Strain'] = np.log1p(df_out['age']) * df_out['bmi']
+
+    # 5. Age-Family Interaction (Genetic risk often manifests later)
+    df_out['Age_Family_Interaction'] = df_out['age'] * df_out['family_history']
+
+    # 6. Cumulative Smoking Risk (Age * Smoking Score)
+    df_out['Cumulative_Smoking_Risk'] = df_out['age'] * df_out['smoking_score']
+
+    # 7. Hyper-Comorbidity Interaction
+    df_out['Hyper_Comorbidity'] = (df_out['hypertension'] + df_out['heart_disease']) * df_out['family_history']
     
     df_out = df_out.drop(columns=['smoking_score', 'drinking_score', 'sedentary_score'], errors='ignore')
     
@@ -127,6 +151,34 @@ def predict():
         # 4. Predict
         # prediction = model.predict(input_encoded)[0] # Threshold dependent
         probability = model.predict_proba(input_encoded)[0][1]
+
+        # 4b. Heuristic Adjustment for High-Genetic-Risk Lean Cases
+        # Issue: Model underestimates lean diabetics with strong genetic/lifestyle risk
+        # Apply minimum probability floor for specific high-risk profiles
+        original_probability = probability
+        
+        # Check if patient matches high-genetic-risk profile
+        is_lean = data['bmi'] < 25
+        has_family_history = data['family_history'] == 1
+        is_older = data['age'] >= 45
+        is_current_smoker = data['smoking_history'] == 'current'
+        has_comorbidity = data['hypertension'] == 1 or data['heart_disease'] == 1
+        
+        # Apply floor for lean individuals with genetic risk
+        if is_lean and has_family_history and is_older:
+            # Base adjustment
+            min_prob = 0.35
+            
+            # Additional adjustments
+            if is_current_smoker:
+                min_prob = 0.45  # Current smoker + family history = at least Moderate
+            if has_comorbidity:
+                min_prob = max(min_prob, 0.50)  # Comorbidity boosts to High tier
+                
+            probability = max(probability, min_prob)
+            
+            if probability > original_probability:
+                print(f"Applied genetic risk adjustment: {original_probability:.4f} -> {probability:.4f}")
 
         # 5. Determine Tier
         if probability < 0.20:

@@ -257,6 +257,15 @@ def engineer_features(df_in):
     # (BMI * Age) / (Height Proxy? Don't have height). 
     # Let's use log(Age) * BMI
     df_out['Metabolic_Strain'] = np.log1p(df_out['age']) * df_out['bmi']
+
+    # 5. Age-Family Interaction (Genetic risk often manifests later)
+    df_out['Age_Family_Interaction'] = df_out['age'] * df_out['family_history']
+
+    # 6. Cumulative Smoking Risk (Age * Smoking Score)
+    df_out['Cumulative_Smoking_Risk'] = df_out['age'] * df_out['smoking_score']
+
+    # 7. Hyper-Comorbidity Interaction
+    df_out['Hyper_Comorbidity'] = (df_out['hypertension'] + df_out['heart_disease']) * df_out['family_history']
     
     # Drop intermediate columns if desired, or keep them. 
     # Dropping text columns happens later in encoding, but we can drop temp scores if we want.
@@ -280,7 +289,8 @@ X = df_clean.drop('diabetes', axis=1)
 y = df_clean['diabetes']
 
 # Helper to identify new columns
-new_numerical = ['Comorbidity_Score', 'Age_BMI_Interaction', 'Lifestyle_Risk', 'Metabolic_Strain']
+new_numerical = ['Comorbidity_Score', 'Age_BMI_Interaction', 'Lifestyle_Risk', 'Metabolic_Strain',
+                 'Age_Family_Interaction', 'Cumulative_Smoking_Risk', 'Hyper_Comorbidity']
 # Add to numerical list for EDA if needed, but primarily for model
 
 # Encode categorical variables
@@ -315,7 +325,10 @@ common_constraints = {
         'Comorbidity_Score': 1,       # Higher = Higher Risk
         'Age_BMI_Interaction': 1,     # Higher = Higher Risk
         'Lifestyle_Risk': 1,          # Higher = Higher Risk
-        'Metabolic_Strain': 1         # Higher = Higher Risk
+        'Metabolic_Strain': 1,        # Higher = Higher Risk
+        'Age_Family_Interaction': 1,  # Higher = Higher Risk
+        'Cumulative_Smoking_Risk': 1, # Higher = Higher Risk
+        'Hyper_Comorbidity': 1        # Higher = Higher Risk
 }
 
 # We need to construct the constraint dict based on actual columns present
@@ -341,7 +354,7 @@ param_dist = {
     'max_depth': [3, 4, 5, 6, 8],
     'subsample': [0.6, 0.8, 1.0],
     'colsample_bytree': [0.6, 0.8, 1.0],
-    'scale_pos_weight': [5.0] # FORCED HIGH SENSITIVITY: Do not tune this down.
+    'scale_pos_weight': [8.0, 10.0] # FORCED EXTREME SENSITIVITY: 8-10x penalty on missing a case
 }
 
 print("⏳ Starting Randomized Search for Hyperparameters (Sensitivity Locked)...")
