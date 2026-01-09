@@ -288,11 +288,11 @@ model = XGBClassifier(
     learning_rate=model_params.get('learning_rate', 0.3),
     max_depth=model_params.get('max_depth', 6),
     eval_metric='logloss',
-    scale_pos_weight=scale_pos_weight,
+    scale_pos_weight=5.0, # Moderately boosted weight to improve sensitivity without breaking calibration
     use_label_encoder=False
 )
 
-# print(f"🔧 Model Config: n_estimators=100, max_depth=6, scale_pos_weight={scale_pos_weight:.2f}")
+# print(f"🔧 Model Config: n_estimators=100, max_depth=6, scale_pos_weight=5.0 (Sensitivity Boost)")
 
 # Train model
 # Train model

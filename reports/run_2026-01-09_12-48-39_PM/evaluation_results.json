@@ -1,0 +1,115 @@
+{
+    "confusion_matrix": {
+        "tn": 13946,
+        "fp": 2185,
+        "fn": 761,
+        "tp": 909
+    },
+    "metrics": {
+        "accuracy": 0.8345036795685635,
+        "precision": 0.2937944408532644,
+        "recall": 0.5443113772455089,
+        "f1_score": 0.38161209068010077,
+        "specificity": 0.8645465253239105
+    },
+    "roc_auc": 0.8197180866090026,
+    "avg_precision": 0.3168470945377863,
+    "feature_importance": [
+        {
+            "Feature": "age",
+            "Importance": 0.14695781469345093
+        },
+        {
+            "Feature": "hypertension",
+            "Importance": 0.0887349471449852
+        },
+        {
+            "Feature": "heart_disease",
+            "Importance": 0.08819688856601715
+        },
+        {
+            "Feature": "family_history",
+            "Importance": 0.08550573140382767
+        },
+        {
+            "Feature": "bmi",
+            "Importance": 0.05082645267248154
+        },
+        {
+            "Feature": "altitude_medium_500-1500m",
+            "Importance": 0.046373628079891205
+        },
+        {
+            "Feature": "drinking_non_drinker",
+            "Importance": 0.042290959507226944
+        },
+        {
+            "Feature": "drinking_light",
+            "Importance": 0.03884011507034302
+        },
+        {
+            "Feature": "smoking_history_current",
+            "Importance": 0.03819341957569122
+        },
+        {
+            "Feature": "smoking_history_former",
+            "Importance": 0.037992049008607864
+        },
+        {
+            "Feature": "gender_Male",
+            "Importance": 0.03773518651723862
+        },
+        {
+            "Feature": "drinking_moderate",
+            "Importance": 0.036720048636198044
+        },
+        {
+            "Feature": "altitude_low_0-500m",
+            "Importance": 0.03497637063264847
+        },
+        {
+            "Feature": "smoking_history_never",
+            "Importance": 0.03221172094345093
+        },
+        {
+            "Feature": "smoking_history_ever",
+            "Importance": 0.031857915222644806
+        },
+        {
+            "Feature": "smoking_history_not current",
+            "Importance": 0.02895755134522915
+        },
+        {
+            "Feature": "occupation_professional",
+            "Importance": 0.02780265174806118
+        },
+        {
+            "Feature": "occupation_office_worker",
+            "Importance": 0.027116645127534866
+        },
+        {
+            "Feature": "occupation_self_employed",
+            "Importance": 0.026833172887563705
+        },
+        {
+            "Feature": "occupation_service_industry",
+            "Importance": 0.02591821365058422
+        },
+        {
+            "Feature": "occupation_manual_labor",
+            "Importance": 0.02207987755537033
+        },
+        {
+            "Feature": "gender_Other",
+            "Importance": 0.003878633724525571
+        },
+        {
+            "Feature": "occupation_retired",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "occupation_student",
+            "Importance": 0.0
+        }
+    ]
+}

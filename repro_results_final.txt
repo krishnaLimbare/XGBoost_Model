@@ -1,0 +1,14 @@
+Base Case (Healthy, Young)                         | Prob: 0.0429 | NO DIABETES
+Age 60 (Only Age Changed)                          | Prob: 0.2031 | NO DIABETES
+Age 80 (Only Age Changed)                          | Prob: 0.5416 | DIABETES DETECTED
+BMI 30 (Overweight)                                | Prob: 0.0980 | NO DIABETES
+BMI 35 (Obese)                                     | Prob: 0.3249 | NO DIABETES
+BMI 45 (Morbidly Obese)                            | Prob: 0.1920 | NO DIABETES
+Hypertension Only                                  | Prob: 0.0854 | NO DIABETES
+Heart Disease Only                                 | Prob: 0.0709 | NO DIABETES
+Hypertension + Heart Disease                       | Prob: 0.1373 | NO DIABETES
+Age 60 + BMI 35                                    | Prob: 0.6253 | DIABETES DETECTED
+Age 80 + BMI 45 (No History)                       | Prob: 0.5634 | DIABETES DETECTED
+Age 80 + BMI 45 + History (Extreme)                | Prob: 0.9120 | DIABETES DETECTED
+Smoker + Drinker (Young)                           | Prob: 0.0374 | NO DIABETES
+Smoker + Drinker (Old)                             | Prob: 0.1689 | NO DIABETES
