@@ -8,9 +8,8 @@ test_patient:
   age: 65.0
   hypertension: 1
   heart_disease: 1
-  smoking_history: "current"
   bmi: 35.0
-  occupation: "manual_labor"
-  family_history: 1
-  drinking: "heavy"
-  altitude: "low_0-500m"
+  Diet: "Unhealthy"
+  PhysicalActivity: "Sedentary"
+  FamilyHistory: 1
+

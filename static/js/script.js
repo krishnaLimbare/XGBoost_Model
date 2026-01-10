@@ -26,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
         data.bmi = parseFloat(data.bmi);
         data.hypertension = parseInt(data.hypertension);
         data.heart_disease = parseInt(data.heart_disease);
-        data.family_history = parseInt(data.family_history);
 
         try {
             const response = await fetch('/predict', {
@@ -118,9 +117,44 @@ document.addEventListener('DOMContentLoaded', () => {
         resultIcon.style.color = color;
         meterFill.style.backgroundColor = color;
 
+        // Render Risk Factors
+        const riskFactorsContainer = document.getElementById('riskFactors');
+        riskFactorsContainer.innerHTML = '<h3>Key Drivers</h3>';
+
+        if (data.impact_factors && data.impact_factors.length > 0) {
+            data.impact_factors.forEach(factor => {
+                const item = document.createElement('div');
+                item.className = 'impact-item';
+
+                const directionColor = factor.sign > 0 ? '#e74c3c' : '#2ecc71';
+                const directionIcon = factor.sign > 0 ? '<i class="fa-solid fa-arrow-trend-up"></i>' : '<i class="fa-solid fa-arrow-trend-down"></i>';
+
+                item.innerHTML = `
+                    <div class="impact-header">
+                        <span class="impact-name">${factor.factor}</span>
+                        <span class="impact-direction" style="color: ${directionColor}">
+                            ${directionIcon} ${factor.direction}
+                        </span>
+                    </div>
+                    <div class="impact-bar-bg">
+                        <div class="impact-bar" style="width: ${factor.strength}%; background-color: ${directionColor}"></div>
+                    </div>
+                `;
+                riskFactorsContainer.appendChild(item);
+            });
+        } else {
+            riskFactorsContainer.innerHTML += '<p class="impact-none">No significant specific drivers found.</p>';
+        }
+
         // Animate meter
         setTimeout(() => {
             meterFill.style.width = `${probability}%`;
+            // Animate bars
+            document.querySelectorAll('.impact-bar').forEach(bar => {
+                const width = bar.style.width;
+                bar.style.width = '0';
+                setTimeout(() => bar.style.width = width, 100);
+            });
         }, 300);
     }
 });

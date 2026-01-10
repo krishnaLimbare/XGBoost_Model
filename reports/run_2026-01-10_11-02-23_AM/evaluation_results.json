@@ -1,0 +1,95 @@
+{
+    "confusion_matrix": {
+        "tn": 6855,
+        "fp": 4961,
+        "fn": 150,
+        "tp": 1276
+    },
+    "metrics": {
+        "accuracy": 0.6140311131249057,
+        "precision": 0.20458553791887124,
+        "recall": 0.8948106591865358,
+        "f1_score": 0.3330288398799426,
+        "specificity": 0.5801455653351388
+    },
+    "roc_auc": 0.8253216275077129,
+    "avg_precision": 0.3549807517282559,
+    "feature_importance": [
+        {
+            "Feature": "Age_Risk_Flag",
+            "Importance": 0.6238821744918823
+        },
+        {
+            "Feature": "Age_BMI_Interaction",
+            "Importance": 0.13720333576202393
+        },
+        {
+            "Feature": "age",
+            "Importance": 0.07212638109922409
+        },
+        {
+            "Feature": "Metabolic_Risk_Score",
+            "Importance": 0.05632586404681206
+        },
+        {
+            "Feature": "Metabolic_Strain",
+            "Importance": 0.036520346999168396
+        },
+        {
+            "Feature": "Cardiovascular_Risk",
+            "Importance": 0.016496356576681137
+        },
+        {
+            "Feature": "Age_Group_middle",
+            "Importance": 0.015647348016500473
+        },
+        {
+            "Feature": "bmi",
+            "Importance": 0.010046757757663727
+        },
+        {
+            "Feature": "Age_Group_senior",
+            "Importance": 0.0076618492603302
+        },
+        {
+            "Feature": "BMI_Category_overweight",
+            "Importance": 0.007116113789379597
+        },
+        {
+            "Feature": "hypertension",
+            "Importance": 0.006753224413841963
+        },
+        {
+            "Feature": "heart_disease",
+            "Importance": 0.0061849867925047874
+        },
+        {
+            "Feature": "Gender_BMI_Interaction",
+            "Importance": 0.0036865591537207365
+        },
+        {
+            "Feature": "gender_Male",
+            "Importance": 0.00034868091461248696
+        },
+        {
+            "Feature": "Obesity_Flag",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "gender_Other",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "Age_Group_elderly",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "BMI_Category_normal",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "BMI_Category_obese",
+            "Importance": 0.0
+        }
+    ]
+}

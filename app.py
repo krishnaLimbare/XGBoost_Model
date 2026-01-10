@@ -1,8 +1,20 @@
+"""
+Diabetes Screening Flask Application
+=====================================
+Web interface for diabetes risk screening using the trained screening model.
+
+Risk Tiers:
+- Low Risk (< 0.30): Annual wellness check
+- Medium Risk (0.30 - 0.60): Lifestyle counseling, 6-month follow-up
+- High Risk (>= 0.60): Clinical evaluation recommended
+
+Features Used: Age, Gender, BMI, Hypertension, Heart Disease, Diet, Physical Activity
+"""
+
 import os
 import pickle
 import pandas as pd
 import numpy as np
-import yaml
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__)
@@ -12,43 +24,115 @@ app = Flask(__name__)
 # =============================================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, 'models', 'diabetes_model.pkl')
-DATA_PROCESSED_DIR = os.path.join(BASE_DIR, 'data', 'processed')
-X_TRAIN_PATH = os.path.join(DATA_PROCESSED_DIR, 'X_train.csv')
+MODEL_PATH = os.path.join(BASE_DIR, 'models', 'diabetes_screening_model.pkl')
 
-# Load Model
-print(f"Loading model from: {MODEL_PATH}")
+# Load Model Package
+print(f"Loading screening model from: {MODEL_PATH}")
 with open(MODEL_PATH, 'rb') as f:
-    model = pickle.load(f)
+    model_package = pickle.load(f)
 
-# Load Training Columns to ensure correct One-Hot Encoding
-model_columns = []
+model = model_package['model']
+scaler = model_package['scaler']
+feature_names = model_package['feature_names']
+numerical_cols = model_package['numerical_cols']
+risk_thresholds = model_package['risk_thresholds']
 
-# Try to get features from model first (Most reliable)
+# Initialize Explainer
 try:
-    if hasattr(model, 'feature_names_in_'):
-        print("Loading feature names directly from model...")
-        model_columns = model.feature_names_in_.tolist()
-    elif hasattr(model, 'get_booster'):
-        print("Loading feature names from XGBoost booster...")
-        model_columns = model.get_booster().feature_names
+    from src.explainability import RiskExplainer
+    print("✅ Initializing Risk Explainer...")
+    if 'feature_means' in model_package:
+        explainer = RiskExplainer(model, feature_names, model_package['feature_means'])
+        print("   Explainer ready.")
+    else:
+        print("⚠️ Warning: 'feature_means' not found in model package. Explainability disabled.")
+        explainer = None
 except Exception as e:
-    print(f"Could not extract feature names from model: {e}")
+    print(f"⚠️ Error initializing explainer: {e}")
+    explainer = None
 
-# Fallback to X_train.csv if needed
-if not model_columns:
-    print(f"Loading training data features from: {X_TRAIN_PATH}")
-    try:
-        X_train_df = pd.read_csv(X_TRAIN_PATH)
-        model_columns = X_train_df.columns.tolist()
-    except Exception as e:
-        print(f"Error loading X_train.csv: {e}")
-        print("WARNING: Feature alignment might fail if X_train.csv is missing or stale.")
+print(f"✅ Loaded {model_package['model_name']} model")
+print(f"   Features: {len(feature_names)}")
+print(f"   Risk thresholds: Low < {risk_thresholds['low']}, High >= {risk_thresholds['high']}")
 
-print(f"Model expects these {len(model_columns)} columns.")
+# Categorical features for encoding
+CATEGORICAL_FEATURES = ['gender', 'Age_Band', 'BMI_Category', 'Diet', 'PhysicalActivity']
 
-# Define Categorical Features (Must match training)
-CATEGORICAL_FEATURES = ['gender', 'smoking_history', 'occupation', 'drinking', 'altitude']
+# =============================================================================
+# FEATURE ENGINEERING (Must match training)
+# =============================================================================
+
+def engineer_features(df_in):
+    """
+    Create clinically meaningful features for diabetes screening.
+    MUST match the function in diabetes_screening_model.py exactly.
+    """
+    df = df_in.copy()
+    
+    # Age-Based Features
+    age_bins = [0, 30, 45, 60, 120]
+    age_labels = ['young', 'middle', 'senior', 'elderly']
+    df['Age_Band'] = pd.cut(df['age'], bins=age_bins, labels=age_labels, right=False)
+    df['Age_Risk_Flag'] = (df['age'] >= 45).astype(int)
+    
+    # BMI-Based Features
+    bmi_bins = [0, 18.5, 25, 30, 100]
+    bmi_labels = ['underweight', 'normal', 'overweight', 'obese']
+    df['BMI_Category'] = pd.cut(df['bmi'], bins=bmi_bins, labels=bmi_labels, right=False)
+    df['Obesity_Flag'] = (df['bmi'] >= 30).astype(int)
+    
+    # Interaction Features
+    df['Age_BMI_Interaction'] = df['age'] * df['bmi']
+    
+    # Cardiovascular Risk Score
+    df['Cardio_Risk_Score'] = df['hypertension'] + df['heart_disease']
+    
+    # Lifestyle Risk Scoring
+    diet_map = {'Healthy': 0, 'Mixed': 1, 'Unhealthy': 2}
+    df['Diet_Score'] = df['Diet'].map(diet_map).fillna(1)
+    
+    activity_map = {'Active': 0, 'Moderately Active': 1, 'Sedentary': 2}
+    df['Activity_Score'] = df['PhysicalActivity'].map(activity_map).fillna(1)
+    
+    df['Lifestyle_Risk_Score'] = df['Diet_Score'] + df['Activity_Score']
+    
+    return df
+
+
+def assign_risk_tier(probability):
+    """
+    Assign risk tier based on probability.
+    
+    Returns dict with tier info and recommendations.
+    """
+    if probability < risk_thresholds['low']:
+        return {
+            'tier': 'Low Risk',
+            'tier_code': 'low',
+            'tier_class': 'risk-low',
+            'emoji': '🟢',
+            'description': 'Low likelihood of diabetes based on current risk factors.',
+            'recommendation': 'Maintain healthy lifestyle. Annual wellness check recommended.'
+        }
+    elif probability < risk_thresholds['high']:
+        return {
+            'tier': 'Medium Risk',
+            'tier_code': 'medium',
+            'tier_class': 'risk-medium',
+            'emoji': '🟡',
+            'description': 'Moderate risk factors present. Preventive action advised.',
+            'recommendation': 'Lifestyle modifications suggested. Consider follow-up in 6 months.'
+        }
+    else:
+        return {
+            'tier': 'High Risk',
+            'tier_code': 'high',
+            'tier_class': 'risk-high',
+            'emoji': '🔴',
+            'description': 'Elevated risk profile detected.',
+            'recommendation': 'Clinical evaluation strongly recommended. Please consult a healthcare provider.'
+        }
+
 
 # =============================================================================
 # ROUTES
@@ -58,62 +142,6 @@ CATEGORICAL_FEATURES = ['gender', 'smoking_history', 'occupation', 'drinking', '
 def index():
     return render_template('index.html')
 
-# =============================================================================
-# FEATURE ENGINEERING FUNCTION (SHARED - MUST MATCH TRAIN_MODEL.PY)
-# =============================================================================
-def engineer_features(df_in):
-    """
-    Creates composite features and proxy biomarkers.
-    Must be identical in train_model.py and app.py
-    """
-    df_out = df_in.copy()
-    
-    # 1. Comorbidity Score
-    df_out['Comorbidity_Score'] = df_out['hypertension'] + df_out['heart_disease'] + df_out['family_history']
-    
-    # 2. Age-BMI Interaction
-    df_out['Age_BMI_Interaction'] = df_out['age'] * df_out['bmi']
-    
-    # 3. Lifestyle Risk Score
-    smoking_map = {
-        'never': 0, 'No Info': 0.5, 'current': 2, 'former': 1, 
-        'ever': 1, 'not current': 0.5
-    }
-    df_out['smoking_score'] = df_out['smoking_history'].map(smoking_map).fillna(0)
-    
-    drinking_map = {
-        'non_drinker': 0, 'light': 0.5, 'moderate': 1, 'heavy': 2
-    }
-    df_out['drinking_score'] = df_out['drinking'].map(drinking_map).fillna(0)
-    
-    # Occupation logic handled via input string, assuming raw input
-    occ_map = {
-        'office_worker': 2, 'student': 2, 'retired': 1, 'unemployed': 1,
-        'healthcare': 1, 'professional': 2, 'service_industry': 0, 
-        'manual_labor': 0, 'self_employed': 1
-    }
-    if 'occupation' in df_out.columns:
-         df_out['sedentary_score'] = df_out['occupation'].map(occ_map).fillna(1)
-    else:
-         df_out['sedentary_score'] = 1 
-         
-    df_out['Lifestyle_Risk'] = df_out['smoking_score'] + df_out['drinking_score'] + df_out['sedentary_score']
-    
-    # 4. Metabolic Strain Index
-    df_out['Metabolic_Strain'] = np.log1p(df_out['age']) * df_out['bmi']
-
-    # 5. Age-Family Interaction (Genetic risk often manifests later)
-    df_out['Age_Family_Interaction'] = df_out['age'] * df_out['family_history']
-
-    # 6. Cumulative Smoking Risk (Age * Smoking Score)
-    df_out['Cumulative_Smoking_Risk'] = df_out['age'] * df_out['smoking_score']
-
-    # 7. Hyper-Comorbidity Interaction
-    df_out['Hyper_Comorbidity'] = (df_out['hypertension'] + df_out['heart_disease']) * df_out['family_history']
-    
-    df_out = df_out.drop(columns=['smoking_score', 'drinking_score', 'sedentary_score'], errors='ignore')
-    
-    return df_out
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -122,102 +150,74 @@ def predict():
         print(f"Received prediction request: {data}")
 
         # 1. Create DataFrame from input
-        input_df = pd.DataFrame([data])
+        input_df = pd.DataFrame([{
+            'gender': data.get('gender'),
+            'age': float(data.get('age')),
+            'hypertension': int(data.get('hypertension')),
+            'heart_disease': int(data.get('heart_disease')),
+            'bmi': float(data.get('bmi')),
+            'Diet': data.get('diet'),
+            'PhysicalActivity': data.get('physical_activity')
+        }])
 
-        # 1b. Feature Engineering (Apply BEFORE encoding)
+        # 2. Apply Feature Engineering
         input_df = engineer_features(input_df)
 
-        # 2. One-Hot Encode (get_dummies)
-        # We process categorical columns same as training
-        # Use drop_first=True to match training behavior more closely, but we handle alignment manually regardless.
-        # Actually in app.py it was using drop_first=False. 
-        # But training uses True. We should use True here too ideally to generate same features.
-        # But previously it aligned columns anyway.
-        # Let's use drop_first=True to be fully consistent with training code in train_model.py
+        # 3. One-Hot Encode
         input_encoded = pd.get_dummies(input_df, columns=CATEGORICAL_FEATURES, drop_first=True, dtype=int)
 
-        # 3. Align Columns with Model
-        # Add missing columns (init with 0)
-        for col in model_columns:
+        # 4. Align Columns with Model
+        for col in feature_names:
             if col not in input_encoded.columns:
                 input_encoded[col] = 0
         
-        # Remove extra columns (if any)
-        input_encoded = input_encoded[model_columns]
-        
-        # Ensure order matches
-        input_encoded = input_encoded[model_columns]
+        input_encoded = input_encoded[feature_names]
 
-        # 4. Predict
-        # prediction = model.predict(input_encoded)[0] # Threshold dependent
+        # 5. Scale Numerical Features
+        if numerical_cols:
+            input_encoded[numerical_cols] = scaler.transform(input_encoded[numerical_cols])
+
+        # 6. Predict
         probability = model.predict_proba(input_encoded)[0][1]
 
-        # 4b. Heuristic Adjustment for High-Genetic-Risk Lean Cases
-        # Issue: Model underestimates lean diabetics with strong genetic/lifestyle risk
-        # Apply minimum probability floor for specific high-risk profiles
-        original_probability = probability
-        
-        # Check if patient matches high-genetic-risk profile
-        is_lean = data['bmi'] < 25
-        has_family_history = data['family_history'] == 1
-        is_older = data['age'] >= 45
-        is_current_smoker = data['smoking_history'] == 'current'
-        has_comorbidity = data['hypertension'] == 1 or data['heart_disease'] == 1
-        
-        # Apply floor for lean individuals with genetic risk
-        if is_lean and has_family_history and is_older:
-            # Base adjustment
-            min_prob = 0.35
-            
-            # Additional adjustments
-            if is_current_smoker:
-                min_prob = 0.45  # Current smoker + family history = at least Moderate
-            if has_comorbidity:
-                min_prob = max(min_prob, 0.50)  # Comorbidity boosts to High tier
-                
-            probability = max(probability, min_prob)
-            
-            if probability > original_probability:
-                print(f"Applied genetic risk adjustment: {original_probability:.4f} -> {probability:.4f}")
+        # 7. Assign Risk Tier
+        risk_info = assign_risk_tier(probability)
 
-        # 5. Determine Tier
-        if probability < 0.20:
-            tier = "Very Low Risk 🌱"
-            tier_class = "risk-very-low"
-            advice = "Great job! Maintain your healthy lifestyle."
-        elif probability < 0.45:
-            tier = "Low Risk 🛡️"
-            tier_class = "risk-low"
-            advice = "Good health status. Keep monitoring your vitals."
-        elif probability < 0.65:
-            tier = "Moderate Risk ⚠️"
-            tier_class = "risk-moderate"
-            advice = "Caution: Some risk factors present. Consult a doctor for preventative checks."
-        elif probability < 0.85:
-            tier = "High Risk 🧡"
-            tier_class = "risk-high"
-            advice = "Warning: High probability of diabetes. Medical attention recommended."
-        else:
-            tier = "Critical Risk 🚨"
-            tier_class = "risk-critical"
-            advice = "URGENT: Very high risk detected. Please see a specialist immediately."
+        # 8. Calculate Explanations
+        impact_factors = []
+        if explainer:
+            try:
+                impact_factors = explainer.explain(input_encoded)
+                # Take top 4 factors
+                impact_factors = impact_factors[:4]
+            except Exception as e:
+                print(f"Explanation error: {e}")
 
-        result_text = f"{tier}"
-        print(f"Prediction: {result_text} ({probability:.4f})")
+        print(f"Prediction: {risk_info['tier']} ({probability:.4f})")
 
         return jsonify({
             'status': 'success',
-            'prediction': int(probability > 0.5),  # 0 or 1 based on std threshold
-            'result': result_text,
-            'tier': tier,
-            'tier_class': tier_class,
-            'advice': advice,
-            'probability': float(probability)
+            'prediction': int(probability >= 0.5),
+            'probability': float(probability),
+            'result': f"{risk_info['emoji']} {risk_info['tier']}",
+            'tier': risk_info['tier'],
+            'tier_code': risk_info['tier_code'],
+            'tier_class': risk_info['tier_class'],
+            'description': risk_info['description'],
+            'advice': risk_info['recommendation'],
+            'impact_factors': impact_factors
         })
 
     except Exception as e:
         print(f"Error during prediction: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# =============================================================================
+# MAIN
+# =============================================================================
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

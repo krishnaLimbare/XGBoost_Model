@@ -47,17 +47,14 @@ with open(CONFIG_PATH, 'r') as file:
 
 # Check if running in CLI Prediction Mode
 parser = argparse.ArgumentParser(description='Diabetes Prediction Model')
-parser.add_argument('--gender', type=str, help='Gender (Female/Male)')
+parser.add_argument('--gender', type=str, help='Gender (Female/Male/Other)')
 parser.add_argument('--age', type=float, help='Age')
 parser.add_argument('--hypertension', type=int, help='Hypertension (0/1)')
 parser.add_argument('--heart_disease', type=int, help='Heart Disease (0/1)')
-parser.add_argument('--smoking_history', type=str, help='Smoking History')
 parser.add_argument('--bmi', type=float, help='BMI')
-parser.add_argument('--occupation', type=str, help='Occupation')
-parser.add_argument('--family_history', type=int, help='Family History of Diabetes (0/1)')
-parser.add_argument('--drinking', type=str, help='Drinking habit')
-parser.add_argument('--altitude', type=str, help='Altitude')
-# Removed: HbA1c_level and blood_glucose_level - model now predicts without these
+parser.add_argument('--diet', type=str, help='Diet (Unhealthy/Mixed/Healthy)')
+parser.add_argument('--physical_activity', type=str, help='Activity (Sedentary/Moderately Active/Active)')
+parser.add_argument('--family_history', type=int, help='Family History (0/1)')
 
 args, unknown = parser.parse_known_args()
 CLI_PROVIDED = any(v is not None for v in vars(args).values())
@@ -131,12 +128,14 @@ def plot_class_distribution(data, title, filename, labels=None):
 
 # print_section("PART 1: DATA LOADING & EXPLORATION")
 
-# Load data (using augmented dataset)
-df = pd.read_csv(os.path.join(DATA_RAW, 'diabetes_prediction_dataset_augmented.csv'))
+# Load data (using new ENHANCED dataset)
+df = pd.read_csv(os.path.join(DATA_RAW, 'diabetes_prediction_dataset_enhanced.csv'))
 # print(f"✅ Dataset loaded: {df.shape[0]:,} rows, {df.shape[1]} columns")
 
-# Drop HbA1c_level and blood_glucose_level for prediction without these features
-df = df.drop(columns=['HbA1c_level', 'blood_glucose_level'], errors='ignore')
+# Drop columns not needed (HbA1c/blood glucose are biological outcomes we don't want as inputs for this risk model)
+# Also drop old unused columns if they somehow persist
+df = df.drop(columns=['HbA1c_level', 'blood_glucose_level', 'smoking_history', 
+                       'occupation', 'drinking', 'altitude'], errors='ignore')
 
 # Basic info
 # print(f"\n📊 Data Overview:")
@@ -152,10 +151,10 @@ imbalance_ratio = target_counts[0] / target_counts[1]
 # print(f"  Diabetes: {target_counts[1]:,} ({target_counts[1]/len(df)*100:.2f}%)")
 # print(f"  Imbalance Ratio: {imbalance_ratio:.2f}:1")
 
-# Feature info (HbA1c_level and blood_glucose_level excluded, new augmented features added)
+# Feature info - Updated with new columns
 numerical_features = ['age', 'bmi']
-categorical_features = ['gender', 'smoking_history', 'occupation', 'drinking', 'altitude']
-binary_features = ['hypertension', 'heart_disease', 'family_history']
+categorical_features = ['gender', 'Diet', 'PhysicalActivity']
+binary_features = ['hypertension', 'heart_disease', 'FamilyHistory']
 
 # print(f"\n📊 Features: {df.shape[1]-1} ({len(numerical_features)} numerical, "
 #       f"{len(categorical_features)} categorical, {len(binary_features)} binary)")
@@ -213,69 +212,98 @@ top_features = correlation_matrix['diabetes'].abs().sort_values(ascending=False)
 # =============================================================================
 def engineer_features(df_in):
     """
-    Creates composite features and proxy biomarkers.
+    Creates clinically meaningful features including new LIFESTYLE data.
     Must be identical in train_model.py and app.py
     """
     df_out = df_in.copy()
     
-    # 1. Comorbidity Score
-    # Sum of binary conditions
-    df_out['Comorbidity_Score'] = df_out['hypertension'] + df_out['heart_disease'] + df_out['family_history']
+    # ==========================================================================
+    # 1. ENCODE LIFESTYLE FACTORS (Ordinal Encoding for Risk Calc)
+    # ==========================================================================
     
-    # 2. Age-BMI Interaction (Obesity impact worsens with age)
+    # Diet Score: Unhealthy=2, Mixed=1, Healthy=0
+    diet_map = {'Unhealthy': 2, 'Mixed': 1, 'Healthy': 0}
+    # Handle missing/case insensitivity just in case
+    df_out['Diet_Score'] = df_out['Diet'].map(diet_map).fillna(1) 
+    
+    # Activity Score: Sedentary=2, Moderately Active=1, Active=0
+    activity_map = {'Sedentary': 2, 'Moderately Active': 1, 'Active': 0}
+    df_out['Activity_Score'] = df_out['PhysicalActivity'].map(activity_map).fillna(1)
+    
+    # Lifestyle Risk Score (0-4)
+    df_out['Lifestyle_Risk_Score'] = df_out['Diet_Score'] + df_out['Activity_Score']
+
+    # ==========================================================================
+    # 2. AGE & BMI FEATURES
+    # ==========================================================================
+    
+    age_bins = [0, 30, 45, 60, 120]
+    age_labels = ['young', 'middle', 'senior', 'elderly']
+    df_out['Age_Group'] = pd.cut(df_out['age'], bins=age_bins, labels=age_labels, right=False)
+    
+    df_out['Age_Risk_Flag'] = (df_out['age'] >= 45).astype(int)
+    
+    bmi_bins = [0, 18.5, 25, 30, 100]
+    bmi_labels = ['underweight', 'normal', 'overweight', 'obese']
+    df_out['BMI_Category'] = pd.cut(df_out['bmi'], bins=bmi_bins, labels=bmi_labels, right=False)
+    
+    df_out['Obesity_Flag'] = (df_out['bmi'] >= 30).astype(int)
+    
+    # ==========================================================================
+    # 3. COMPOSITE RISK SCORES
+    # ==========================================================================
+    
+    # Cardiovascular Risk Score (0-2)
+    df_out['Cardiovascular_Risk'] = df_out['hypertension'] + df_out['heart_disease']
+    
+    # Genetic Risk (Just renaming for clarity in importance)
+    df_out['Genetic_Risk'] = df_out['FamilyHistory']
+    
+    # ==========================================================================
+    # 4. INTERACTIONS
+    # ==========================================================================
+    
     df_out['Age_BMI_Interaction'] = df_out['age'] * df_out['bmi']
     
-    # 3. Lifestyle Risk Score
-    # Map smoking
-    smoking_map = {
-        'never': 0, 'No Info': 0.5, 'current': 2, 'former': 1, 
-        'ever': 1, 'not current': 0.5
-    }
-    df_out['smoking_score'] = df_out['smoking_history'].map(smoking_map).fillna(0)
+    # Lifestyle-BMI Interaction: Poor lifestyle amplifies BMI risk
+    df_out['Lifestyle_BMI_Interaction'] = df_out['Lifestyle_Risk_Score'] * df_out['bmi']
     
-    # Map drinking
-    drinking_map = {
-        'non_drinker': 0, 'light': 0.5, 'moderate': 1, 'heavy': 2
-    }
-    df_out['drinking_score'] = df_out['drinking'].map(drinking_map).fillna(0)
+    # Genetic-Age Interaction: Genetic risk expression often increases with age
+    df_out['Genetic_Age_Interaction'] = df_out['Genetic_Risk'] * df_out['age']
     
-    # Occupation sedentary score (Subjective estimation)
-    occ_map = {
-        'office_worker': 2, 'student': 2, 'retired': 1, 'unemployed': 1,
-        'healthcare': 1, 'professional': 2, 'service_industry': 0, 
-        'manual_labor': 0, 'self_employed': 1
-    }
-    # Handle occupation map carefully if column exists
-    if 'occupation' in df_out.columns:
-         df_out['sedentary_score'] = df_out['occupation'].map(occ_map).fillna(1)
-    else:
-         df_out['sedentary_score'] = 1 # Default
-         
-    df_out['Lifestyle_Risk'] = df_out['smoking_score'] + df_out['drinking_score'] + df_out['sedentary_score']
+    # ==========================================================================
+    # 5. METABOLIC RISK SCORE (Comprehensive 0-7)
+    # ==========================================================================
     
-    # 4. Metabolic Strain Index (Proxy)
-    # (BMI * Age) / (Height Proxy? Don't have height). 
-    # Let's use log(Age) * BMI
+    # Sum of: Age_Risk(1) + Obesity(1) + CV_Risk(2) + Lifestyle(4) + Genetic(1)
+    # This is a very strong proxy for the overall log-odds
+    df_out['Metabolic_Risk_Score'] = (
+        df_out['Age_Risk_Flag'] + 
+        df_out['Obesity_Flag'] + 
+        df_out['Cardiovascular_Risk'] +
+        df_out['Lifestyle_Risk_Score'] +
+        df_out['Genetic_Risk']
+    )
+    
+    # ==========================================================================
+    # 6. METABOLIC STRAIN
+    # ==========================================================================
+    
     df_out['Metabolic_Strain'] = np.log1p(df_out['age']) * df_out['bmi']
-
-    # 5. Age-Family Interaction (Genetic risk often manifests later)
-    df_out['Age_Family_Interaction'] = df_out['age'] * df_out['family_history']
-
-    # 6. Cumulative Smoking Risk (Age * Smoking Score)
-    df_out['Cumulative_Smoking_Risk'] = df_out['age'] * df_out['smoking_score']
-
-    # 7. Hyper-Comorbidity Interaction
-    df_out['Hyper_Comorbidity'] = (df_out['hypertension'] + df_out['heart_disease']) * df_out['family_history']
     
-    # Drop intermediate columns if desired, or keep them. 
-    # Dropping text columns happens later in encoding, but we can drop temp scores if we want.
-    df_out = df_out.drop(columns=['smoking_score', 'drinking_score', 'sedentary_score'], errors='ignore')
+    # Drop temp intermediate ordinal columns if we don't want them as direct features
+    # BUT we probably DO want them as features since XGBoost handles meaningful ordinals well.
+    # We will keep Diet_Score and Activity_Score as they are better than one-hot for trees often.
+    # We can drop the original text columns later or let get_dummies handle them (but redundant).
+    # Let's keep Scores and drop text to avoid one-hot explosion if we prefer ordinal.
+    # Actually, the pipeline below uses get_dummies on categorical_features.
+    # Diet and PhysicalActivity are in categorical_features.
     
     return df_out
 
 # Apply Feature Engineering
 df = engineer_features(df)
-print("✅ Feature Engineering Complete: Added Composite Features")
+print("✅ Feature Engineering Complete: Added Clinical Features (Age bins, BMI categories, CV risk, interactions, metabolic scores)")
 
 # =============================================================================
 # DATA PREPROCESSING (Updated for new features)
@@ -288,13 +316,16 @@ df_clean = df.drop_duplicates(keep='first')
 X = df_clean.drop('diabetes', axis=1)
 y = df_clean['diabetes']
 
-# Helper to identify new columns
-new_numerical = ['Comorbidity_Score', 'Age_BMI_Interaction', 'Lifestyle_Risk', 'Metabolic_Strain',
-                 'Age_Family_Interaction', 'Cumulative_Smoking_Risk', 'Hyper_Comorbidity']
-# Add to numerical list for EDA if needed, but primarily for model
+# Helper to identify new engineered columns
+# Helper to identify new engineered columns
+new_numerical = ['Age_Risk_Flag', 'Obesity_Flag', 'Cardiovascular_Risk', 
+                 'Age_BMI_Interaction', 'Lifestyle_Risk_Score', 'Lifestyle_BMI_Interaction',
+                 'Metabolic_Risk_Score', 'Metabolic_Strain', 'Genetic_Risk', 'Genetic_Age_Interaction',
+                 'Diet_Score', 'Activity_Score']
+new_categorical = ['Age_Group', 'BMI_Category']
 
-# Encode categorical variables
-X_encoded = pd.get_dummies(X, columns=categorical_features, drop_first=True, dtype=int)
+# Encode categorical variables (gender + engineered categorical features)
+X_encoded = pd.get_dummies(X, columns=categorical_features + new_categorical, drop_first=True, dtype=int)
 
 # Train-test split (stratified)
 X_train, X_test, y_train, y_test = train_test_split(
@@ -313,22 +344,26 @@ print_section("PART 5: HYPERPARAMETER TUNING & TRAINING")
 
 from sklearn.model_selection import RandomizedSearchCV
 
-# Define constraints map for new features?
+# Define constraints map for new clinical features
 # We need to re-verify column names in X_train_balanced to map constraints correctly.
-# Existing constraints:
+# Monotone constraints: 1 = higher value → higher risk
 common_constraints = {
         'age': 1,
         'bmi': 1,
         'hypertension': 1,
         'heart_disease': 1,
-        'family_history': 1,
-        'Comorbidity_Score': 1,       # Higher = Higher Risk
-        'Age_BMI_Interaction': 1,     # Higher = Higher Risk
-        'Lifestyle_Risk': 1,          # Higher = Higher Risk
-        'Metabolic_Strain': 1,        # Higher = Higher Risk
-        'Age_Family_Interaction': 1,  # Higher = Higher Risk
-        'Cumulative_Smoking_Risk': 1, # Higher = Higher Risk
-        'Hyper_Comorbidity': 1        # Higher = Higher Risk
+        'Age_Risk_Flag': 1,
+        'Obesity_Flag': 1,
+        'Cardiovascular_Risk': 1,
+        'FamilyHistory': 1,            # Genetic risk
+        'Genetic_Risk': 1,             # Same as FamilyHistory
+        'Diet_Score': 1,               # Unhealthy(2) > Healthy(0) -> Positive Constraint
+        'Activity_Score': 1,           # Sedentary(2) > Active(0) -> Positive Constraint
+        'Lifestyle_Risk_Score': 1,
+        'Lifestyle_BMI_Interaction': 1,
+        'Metabolic_Risk_Score': 1,
+        'Metabolic_Strain': 1,
+        'Genetic_Age_Interaction': 1
 }
 
 # We need to construct the constraint dict based on actual columns present
@@ -567,15 +602,13 @@ if VERBOSE:
 def get_patient_data(config):
     # Args already parsed at top level
     if CLI_PROVIDED:
-        # Validate that all required fields are present (augmented dataset features)
-        required_fields = ['gender', 'age', 'hypertension', 'heart_disease', 
-                           'smoking_history', 'bmi', 'occupation', 'family_history', 'drinking', 'altitude']
+        # Validate that all required fields are present (simplified 5-feature model)
+        required_fields = ['gender', 'age', 'hypertension', 'heart_disease', 'bmi', 'diet', 'physical_activity', 'family_history']
         missing = [f for f in required_fields if getattr(args, f) is None]
         
         if missing:
             print(f"\n⚠️  Missing CLI arguments for: {', '.join(missing)}")
             print("   Using config data instead.")
-            # If fallback to config, allow verbose? No, stick to consistent behavior or force verbose
             return config.get('test_patient')
             
         print_section("PART 7: PATIENT PREDICTION FROM CLI ARGS")
@@ -584,12 +617,10 @@ def get_patient_data(config):
             'age': args.age,
             'hypertension': args.hypertension,
             'heart_disease': args.heart_disease,
-            'smoking_history': args.smoking_history,
             'bmi': args.bmi,
-            'occupation': args.occupation,
-            'family_history': args.family_history,
-            'drinking': args.drinking,
-            'altitude': args.altitude
+            'Diet': args.diet,
+            'PhysicalActivity': args.physical_activity,
+            'FamilyHistory': args.family_history
         }
     
     if 'test_patient' in config:
@@ -609,8 +640,11 @@ if patient_data:
     # Create DataFrame from patient data
     patient_df = pd.DataFrame([patient_data])
     
+    # Apply Feature Engineering (MUST match training)
+    patient_df = engineer_features(patient_df)
+    
     # Preprocess: One-hot encode using the same method (align with training columns)
-    patient_encoded = pd.get_dummies(patient_df, columns=categorical_features, drop_first=True, dtype=int)
+    patient_encoded = pd.get_dummies(patient_df, columns=categorical_features + new_categorical, drop_first=True, dtype=int)
     
     # Align columns
     missing_cols = set(X_train.columns) - set(patient_encoded.columns)

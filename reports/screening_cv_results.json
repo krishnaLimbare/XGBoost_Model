@@ -1,0 +1,34 @@
+{
+    "Logistic Regression": {
+        "model_name": "Logistic Regression",
+        "n_folds": 5,
+        "mean_accuracy": 0.738275,
+        "std_accuracy": 0.004949684333369135,
+        "mean_precision": 0.3041287974733641,
+        "std_precision": 0.005592294498488547,
+        "mean_recall": 0.7077625570776256,
+        "std_recall": 0.004917958727976724,
+        "mean_f1": 0.4254303207701561,
+        "std_f1": 0.006311800376466163,
+        "mean_auc": 0.8023705507556895,
+        "std_auc": 0.00393238947924981,
+        "mean_specificity": 0.7431136857349746,
+        "std_specificity": 0.005009815179128413
+    },
+    "XGBoost": {
+        "model_name": "XGBoost",
+        "n_folds": 5,
+        "mean_accuracy": 0.7470625,
+        "std_accuracy": 0.0050031240240473885,
+        "mean_precision": 0.3104656994704716,
+        "std_precision": 0.0047496217123596226,
+        "mean_recall": 0.6939726027397259,
+        "std_recall": 0.004921349254906835,
+        "mean_f1": 0.4289696962903822,
+        "std_f1": 0.0041104122519910295,
+        "mean_auc": 0.7990676533119075,
+        "std_auc": 0.0029128745053139055,
+        "mean_specificity": 0.7554815351194787,
+        "std_specificity": 0.0062979347585371895
+    }
+}

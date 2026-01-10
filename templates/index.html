@@ -65,57 +65,24 @@
                         </select>
                     </div>
 
-                    <div class="input-group">
-                        <label>Family History</label>
-                        <select name="family_history" required>
-                            <option value="0">No</option>
-                            <option value="1">Yes</option>
-                        </select>
-                    </div>
+                    <!-- New Risk Factors -->
 
-                    <!-- Lifestyle -->
+
                     <div class="input-group">
-                        <label>Smoking History</label>
-                        <select name="smoking_history" required>
-                            <option value="never">Never</option>
-                            <option value="No Info">No Info</option>
-                            <option value="current">Current</option>
-                            <option value="former">Former</option>
-                            <option value="ever">Ever</option>
-                            <option value="not current">Not Current</option>
+                        <label>Diet Habit</label>
+                        <select name="diet" required>
+                            <option value="Unhealthy">Unhealthy</option>
+                            <option value="Mixed">Mixed</option>
+                            <option value="Healthy">Healthy</option>
                         </select>
                     </div>
 
                     <div class="input-group">
-                        <label>Drinking Habit</label>
-                        <select name="drinking" required>
-                            <option value="non_drinker">Non Drinker</option>
-                            <option value="light">Light</option>
-                            <option value="moderate">Moderate</option>
-                            <option value="heavy">Heavy</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Occupation</label>
-                        <select name="occupation" required>
-                            <option value="office_worker">Office Worker</option>
-                            <option value="manual_labor">Manual Labor</option>
-                            <option value="professional">Professional</option>
-                            <option value="service_industry">Service Industry</option>
-                            <option value="healthcare">Healthcare</option>
-                            <option value="self_employed">Self Employed</option>
-                            <option value="student">Student</option>
-                            <option value="retired">Retired</option>
-                        </select>
-                    </div>
-
-                    <div class="input-group">
-                        <label>Altitude</label>
-                        <select name="altitude" required>
-                            <option value="low_0-500m">Low (0-500m)</option>
-                            <option value="medium_500-1500m">Moderate (500-1500m)</option>
-                            <option value="high_1500m_plus">High (1500m+)</option>
+                        <label>Physical Activity</label>
+                        <select name="physical_activity" required>
+                            <option value="Sedentary">Sedentary</option>
+                            <option value="Moderately Active">Moderately Active</option>
+                            <option value="Active">Active</option>
                         </select>
                     </div>
                 </div>
@@ -126,20 +93,26 @@
                 </button>
             </form>
 
-            <!-- Result Modal / Overlay -->
-            <div id="resultContainer" class="result-container hidden">
-                <div class="result-content">
-                    <div id="resultIcon" class="result-icon"></div>
-                    <h2 id="resultTitle">Analyzing...</h2>
-                    <div class="probability-meter">
-                        <div class="meter-bg">
-                            <div id="meterFill" class="meter-fill"></div>
-                        </div>
-                        <p id="probabilityText">0% Risk Probability</p>
-                    </div>
-                    <button id="resetBtn" class="secondary-btn">New Assessment</button>
+
+        </div>
+    </div>
+
+    <!-- Result Modal / Overlay (Moved to root) -->
+    <div id="resultContainer" class="result-container hidden">
+        <div class="result-content">
+            <div id="resultIcon" class="result-icon"></div>
+            <h2 id="resultTitle">Analyzing...</h2>
+            <div class="probability-meter">
+                <div class="meter-bg">
+                    <div id="meterFill" class="meter-fill"></div>
                 </div>
+                <p id="probabilityText">0% Risk Probability</p>
             </div>
+
+            <div id="riskFactors" class="risk-factors">
+                <!-- Impact factors injected here -->
+            </div>
+            <button id="resetBtn" class="secondary-btn">New Assessment</button>
         </div>
     </div>
 
