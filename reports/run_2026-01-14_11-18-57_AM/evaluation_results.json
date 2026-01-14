@@ -1,0 +1,151 @@
+{
+    "confusion_matrix": {
+        "tn": 6981,
+        "fp": 9115,
+        "fn": 237,
+        "tp": 3667
+    },
+    "metrics": {
+        "accuracy": 0.5324,
+        "precision": 0.2868878109841965,
+        "recall": 0.9392930327868853,
+        "f1_score": 0.43953014503176313,
+        "specificity": 0.4337102385685885
+    },
+    "roc_auc": 0.8526389132545914,
+    "avg_precision": 0.6176715105199719,
+    "feature_importance": [
+        {
+            "Feature": "Metabolic_Strain",
+            "Importance": 0.26087480783462524
+        },
+        {
+            "Feature": "waist_circumference_cm",
+            "Importance": 0.18288426101207733
+        },
+        {
+            "Feature": "bmi",
+            "Importance": 0.11713015288114548
+        },
+        {
+            "Feature": "Obesity_Flag",
+            "Importance": 0.11576744168996811
+        },
+        {
+            "Feature": "Metabolic_Risk_Score",
+            "Importance": 0.0729525089263916
+        },
+        {
+            "Feature": "Age_BMI_Interaction",
+            "Importance": 0.060823529958724976
+        },
+        {
+            "Feature": "Lifestyle_BMI_Interaction",
+            "Importance": 0.045671142637729645
+        },
+        {
+            "Feature": "age",
+            "Importance": 0.03905242308974266
+        },
+        {
+            "Feature": "Diet_Score",
+            "Importance": 0.025827554985880852
+        },
+        {
+            "Feature": "Age_Risk_Flag",
+            "Importance": 0.024688562378287315
+        },
+        {
+            "Feature": "Lifestyle_Risk_Score",
+            "Importance": 0.024345722049474716
+        },
+        {
+            "Feature": "Diet_Unhealthy",
+            "Importance": 0.019047103822231293
+        },
+        {
+            "Feature": "fruit_veg_frequency",
+            "Importance": 0.010934899561107159
+        },
+        {
+            "Feature": "processed_food_frequency",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "sugary_drink_frequency",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "sedentary_hours_per_day",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "heart_disease",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "Genetic_Risk",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "Cardiovascular_Risk",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "FamilyHistory",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "Activity_Score",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "hypertension",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "Genetic_Age_Interaction",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "gender_Male",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "Diet_Mixed",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "PhysicalActivity_Moderately Active",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "PhysicalActivity_Sedentary",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "Age_Group_middle",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "Age_Group_senior",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "Age_Group_elderly",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "BMI_Category_normal",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "BMI_Category_overweight",
+            "Importance": 0.0
+        },
+        {
+            "Feature": "BMI_Category_obese",
+            "Importance": 0.0
+        }
+    ]
+}

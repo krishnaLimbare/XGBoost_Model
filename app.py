@@ -56,7 +56,7 @@ print(f"   Features: {len(feature_names)}")
 print(f"   Risk thresholds: Low < {risk_thresholds['low']}, High >= {risk_thresholds['high']}")
 
 # Categorical features for encoding
-CATEGORICAL_FEATURES = ['gender', 'Age_Band', 'BMI_Category', 'Diet', 'PhysicalActivity']
+CATEGORICAL_FEATURES = ['gender', 'Age_Group', 'BMI_Category', 'Diet', 'PhysicalActivity']
 
 # =============================================================================
 # FEATURE ENGINEERING (Must match training)
@@ -65,38 +65,86 @@ CATEGORICAL_FEATURES = ['gender', 'Age_Band', 'BMI_Category', 'Diet', 'PhysicalA
 def engineer_features(df_in):
     """
     Create clinically meaningful features for diabetes screening.
-    MUST match the function in diabetes_screening_model.py exactly.
+    MUST match the function in train_model.py exactly.
     """
-    df = df_in.copy()
+    df_out = df_in.copy()
     
-    # Age-Based Features
+    # ==========================================================================
+    # 1. ENCODE LIFESTYLE FACTORS (Ordinal Encoding for Risk Calc)
+    # ==========================================================================
+    
+    # Diet Score: Unhealthy=2, Mixed=1, Healthy=0
+    diet_map = {'Unhealthy': 2, 'Mixed': 1, 'Healthy': 0}
+    df_out['Diet_Score'] = df_out['Diet'].map(diet_map).fillna(1) 
+    
+    # Activity Score: Sedentary=2, Moderately Active=1, Active=0
+    activity_map = {'Sedentary': 2, 'Moderately Active': 1, 'Active': 0}
+    df_out['Activity_Score'] = df_out['PhysicalActivity'].map(activity_map).fillna(1)
+    
+    # Lifestyle Risk Score (0-4)
+    df_out['Lifestyle_Risk_Score'] = df_out['Diet_Score'] + df_out['Activity_Score']
+
+    # ==========================================================================
+    # 2. AGE & BMI FEATURES
+    # ==========================================================================
+    
     age_bins = [0, 30, 45, 60, 120]
     age_labels = ['young', 'middle', 'senior', 'elderly']
-    df['Age_Band'] = pd.cut(df['age'], bins=age_bins, labels=age_labels, right=False)
-    df['Age_Risk_Flag'] = (df['age'] >= 45).astype(int)
+    df_out['Age_Group'] = pd.cut(df_out['age'], bins=age_bins, labels=age_labels, right=False)
     
-    # BMI-Based Features
+    df_out['Age_Risk_Flag'] = (df_out['age'] >= 45).astype(int)
+    
     bmi_bins = [0, 18.5, 25, 30, 100]
     bmi_labels = ['underweight', 'normal', 'overweight', 'obese']
-    df['BMI_Category'] = pd.cut(df['bmi'], bins=bmi_bins, labels=bmi_labels, right=False)
-    df['Obesity_Flag'] = (df['bmi'] >= 30).astype(int)
+    df_out['BMI_Category'] = pd.cut(df_out['bmi'], bins=bmi_bins, labels=bmi_labels, right=False)
     
-    # Interaction Features
-    df['Age_BMI_Interaction'] = df['age'] * df['bmi']
+    df_out['Obesity_Flag'] = (df_out['bmi'] >= 30).astype(int)
     
-    # Cardiovascular Risk Score
-    df['Cardio_Risk_Score'] = df['hypertension'] + df['heart_disease']
+    # ==========================================================================
+    # 3. COMPOSITE RISK SCORES
+    # ==========================================================================
     
-    # Lifestyle Risk Scoring
-    diet_map = {'Healthy': 0, 'Mixed': 1, 'Unhealthy': 2}
-    df['Diet_Score'] = df['Diet'].map(diet_map).fillna(1)
+    # Cardiovascular Risk Score (0-2)
+    df_out['Cardiovascular_Risk'] = df_out['hypertension'] + df_out['heart_disease']
     
-    activity_map = {'Active': 0, 'Moderately Active': 1, 'Sedentary': 2}
-    df['Activity_Score'] = df['PhysicalActivity'].map(activity_map).fillna(1)
+    # Genetic Risk 
+    # df_out['Genetic_Risk'] is already passed in input_df, so no need to rename FamilyHistory here 
+    # unless we want consistency. In app inputs we pass 'FamilyHistory' and map it to 'Genetic_Risk'
+    # Let's ensure 'Genetic_Risk' exists.
+    if 'Genetic_Risk' not in df_out.columns and 'FamilyHistory' in df_out.columns:
+        df_out['Genetic_Risk'] = df_out['FamilyHistory']
     
-    df['Lifestyle_Risk_Score'] = df['Diet_Score'] + df['Activity_Score']
+    # ==========================================================================
+    # 4. INTERACTIONS
+    # ==========================================================================
     
-    return df
+    df_out['Age_BMI_Interaction'] = df_out['age'] * df_out['bmi']
+    
+    # Lifestyle-BMI Interaction
+    df_out['Lifestyle_BMI_Interaction'] = df_out['Lifestyle_Risk_Score'] * df_out['bmi']
+    
+    # Genetic-Age Interaction
+    df_out['Genetic_Age_Interaction'] = df_out['Genetic_Risk'] * df_out['age']
+    
+    # ==========================================================================
+    # 5. METABOLIC RISK SCORE
+    # ==========================================================================
+    
+    df_out['Metabolic_Risk_Score'] = (
+        df_out['Age_Risk_Flag'] + 
+        df_out['Obesity_Flag'] + 
+        df_out['Cardiovascular_Risk'] +
+        df_out['Lifestyle_Risk_Score'] +
+        df_out['Genetic_Risk']
+    )
+    
+    # ==========================================================================
+    # 6. METABOLIC STRAIN
+    # ==========================================================================
+    
+    df_out['Metabolic_Strain'] = np.log1p(df_out['age']) * df_out['bmi']
+    
+    return df_out
 
 
 def assign_risk_tier(probability):
@@ -157,7 +205,15 @@ def predict():
             'heart_disease': int(data.get('heart_disease')),
             'bmi': float(data.get('bmi')),
             'Diet': data.get('diet'),
-            'PhysicalActivity': data.get('physical_activity')
+            'PhysicalActivity': data.get('physical_activity'),
+            # New Features
+            'waist_circumference_cm': float(data.get('waist_circumference')),
+            'sedentary_hours_per_day': float(data.get('sedentary_hours')),
+            'sugary_drink_frequency': float(data.get('sugary_drinks')),
+            'processed_food_frequency': float(data.get('processed_food')),
+            'fruit_veg_frequency': float(data.get('fruit_veg')),
+            'FamilyHistory': int(data.get('family_history')),
+            'Genetic_Risk': int(data.get('family_history')) # Alias
         }])
 
         # 2. Apply Feature Engineering
@@ -188,8 +244,8 @@ def predict():
         if explainer:
             try:
                 impact_factors = explainer.explain(input_encoded)
-                # Take top 4 factors
-                impact_factors = impact_factors[:4]
+                # Take all relevant factors
+                impact_factors = impact_factors[:10]
             except Exception as e:
                 print(f"Explanation error: {e}")
 

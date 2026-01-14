@@ -10,6 +10,120 @@ document.addEventListener('DOMContentLoaded', () => {
     const meterFill = document.getElementById('meterFill');
     const probabilityText = document.getElementById('probabilityText');
 
+    // BMI Modal Logic (Hybrid Units)
+    const bmiModal = document.getElementById('bmiModal');
+    const openBmiBtn = document.getElementById('openBmiCalc');
+    const closeBmiBtn = document.querySelector('.close-modal');
+    const calcBmiBtn = document.getElementById('calcBmiBtn');
+
+    // Elements for Hybrid Logic
+    const unitOptions = document.querySelectorAll('.unit-option');
+    const heightInputCm = document.getElementById('heightInputCm');
+    const heightInputFt = document.getElementById('heightInputFt');
+
+    // State
+    let heightUnit = 'cm';
+    let weightUnit = 'kg';
+
+    if (openBmiBtn) {
+        openBmiBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            bmiModal.classList.remove('hidden');
+            bmiModal.style.display = 'block';
+        });
+    }
+
+    if (closeBmiBtn) {
+        closeBmiBtn.addEventListener('click', () => {
+            bmiModal.classList.add('hidden');
+            bmiModal.style.display = 'none';
+        });
+    }
+
+    window.addEventListener('click', (e) => {
+        if (e.target === bmiModal) {
+            bmiModal.classList.add('hidden');
+            bmiModal.style.display = 'none';
+        }
+    });
+
+    // Toggle Unit Handlers
+    unitOptions.forEach(opt => {
+        opt.addEventListener('click', () => {
+            const type = opt.dataset.type; // 'height' or 'weight'
+            const unit = opt.dataset.unit; // 'cm', 'ft', 'kg', 'lbs'
+
+            // Updates visual state for this row's options
+            document.querySelectorAll(`.unit-option[data-type="${type}"]`).forEach(el => el.classList.remove('active'));
+            opt.classList.add('active');
+
+            // Logic updates
+            if (type === 'height') {
+                heightUnit = unit;
+                if (unit === 'cm') {
+                    heightInputCm.classList.remove('hidden');
+                    heightInputFt.classList.add('hidden');
+                    heightInputFt.style.display = 'none';
+                    heightInputCm.style.display = 'block';
+                } else {
+                    heightInputCm.classList.add('hidden');
+                    heightInputFt.classList.remove('hidden');
+                    heightInputCm.style.display = 'none';
+                    heightInputFt.style.display = 'flex';
+                }
+            } else if (type === 'weight') {
+                weightUnit = unit;
+                // No visual input change needed for weight, just calculation logic
+            }
+        });
+    });
+
+    if (calcBmiBtn) {
+        calcBmiBtn.addEventListener('click', () => {
+            let heightM = 0;
+            let weightKg = 0;
+            let valid = true;
+
+            // 1. Get Height in Meters
+            if (heightUnit === 'cm') {
+                const val = parseFloat(document.getElementById('h_cm').value);
+                if (!val || val <= 0) valid = false;
+                else heightM = val / 100;
+            } else {
+                const ft = parseFloat(document.getElementById('h_ft').value) || 0;
+                const inch = parseFloat(document.getElementById('h_in').value) || 0;
+                if (ft === 0 && inch === 0) valid = false;
+                else {
+                    const totalInches = (ft * 12) + inch;
+                    heightM = totalInches * 0.0254;
+                }
+            }
+
+            // 2. Get Weight in Kg
+            const wVal = parseFloat(document.getElementById('w_val').value);
+            if (!wVal || wVal <= 0) valid = false;
+            else {
+                if (weightUnit === 'kg') {
+                    weightKg = wVal;
+                } else {
+                    weightKg = wVal * 0.453592;
+                }
+            }
+
+            // 3. Calculate
+            if (valid && heightM > 0) {
+                const bmi = weightKg / (heightM * heightM);
+                document.getElementById('bmiInput').value = bmi.toFixed(1);
+
+                // Show brief success feedback or close
+                bmiModal.classList.add('hidden');
+                bmiModal.style.display = 'none';
+            } else {
+                alert('Please enter valid height and weight values.');
+            }
+        });
+    }
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -26,6 +140,14 @@ document.addEventListener('DOMContentLoaded', () => {
         data.bmi = parseFloat(data.bmi);
         data.hypertension = parseInt(data.hypertension);
         data.heart_disease = parseInt(data.heart_disease);
+
+        // New features conversion
+        data.waist_circumference = parseFloat(data.waist_circumference);
+        data.sedentary_hours = parseFloat(data.sedentary_hours);
+        data.sugary_drinks = parseFloat(data.sugary_drinks);
+        data.processed_food = parseFloat(data.processed_food);
+        data.fruit_veg = parseFloat(data.fruit_veg);
+        data.family_history = parseInt(data.family_history);
 
         try {
             const response = await fetch('/predict', {
@@ -133,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="impact-header">
                         <span class="impact-name">${factor.factor}</span>
                         <span class="impact-direction" style="color: ${directionColor}">
-                            ${directionIcon} ${factor.direction}
+                            ${directionIcon} ${factor.direction} (${factor.strength.toFixed(0)}%)
                         </span>
                     </div>
                     <div class="impact-bar-bg">

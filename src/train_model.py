@@ -129,7 +129,7 @@ def plot_class_distribution(data, title, filename, labels=None):
 # print_section("PART 1: DATA LOADING & EXPLORATION")
 
 # Load data (using new ENHANCED dataset)
-df = pd.read_csv(os.path.join(DATA_RAW, 'diabetes_prediction_dataset_enhanced.csv'))
+df = pd.read_csv(os.path.join(DATA_RAW, 'diabetes_prediction_dataset_final.csv'))
 # print(f"✅ Dataset loaded: {df.shape[0]:,} rows, {df.shape[1]} columns")
 
 # Drop columns not needed (HbA1c/blood glucose are biological outcomes we don't want as inputs for this risk model)
@@ -152,7 +152,8 @@ imbalance_ratio = target_counts[0] / target_counts[1]
 # print(f"  Imbalance Ratio: {imbalance_ratio:.2f}:1")
 
 # Feature info - Updated with new columns
-numerical_features = ['age', 'bmi']
+numerical_features = ['age', 'bmi', 'waist_circumference_cm', 'sedentary_hours_per_day', 
+                      'sugary_drink_frequency', 'processed_food_frequency', 'fruit_veg_frequency']
 categorical_features = ['gender', 'Diet', 'PhysicalActivity']
 binary_features = ['hypertension', 'heart_disease', 'FamilyHistory']
 
@@ -170,8 +171,10 @@ plot_class_distribution(df['diabetes'], 'Target Distribution',
                        os.path.join(FIGURES_DIR, 'eda_target_distribution.png'), ['No Diabetes', 'Diabetes'])
 
 # Numerical distributions
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+fig, axes = plt.subplots(2, 4, figsize=(18, 10))
 axes = axes.ravel()
+for i in range(len(numerical_features), len(axes)):
+    axes[i].set_visible(False) # Hide unused subplots
 for idx, feature in enumerate(numerical_features):
     axes[idx].hist(df[feature], bins=50, color='steelblue', alpha=0.7, edgecolor='black')
     axes[idx].set_title(f'{feature} Distribution', fontsize=12, fontweight='bold')
@@ -180,8 +183,10 @@ for idx, feature in enumerate(numerical_features):
 save_plot(os.path.join(FIGURES_DIR, 'eda_numerical_distributions.png'))
 
 # Feature vs Target
-fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+fig, axes = plt.subplots(2, 4, figsize=(18, 10))
 axes = axes.ravel()
+for i in range(len(numerical_features), len(axes)):
+    axes[i].set_visible(False) # Hide unused subplots
 for idx, feature in enumerate(numerical_features):
     df.boxplot(column=feature, by='diabetes', ax=axes[idx], patch_artist=True, grid=False)
     axes[idx].set_title(f'{feature} vs Diabetes', fontsize=12, fontweight='bold')
@@ -313,8 +318,8 @@ print("✅ Feature Engineering Complete: Added Clinical Features (Age bins, BMI 
 df_clean = df.drop_duplicates(keep='first')
 
 # Separate features and target
-X = df_clean.drop('diabetes', axis=1)
-y = df_clean['diabetes']
+X = df_clean.drop(['diabetes', 'diabetes_updated'], axis=1)
+y = df_clean['diabetes_updated']
 
 # Helper to identify new engineered columns
 # Helper to identify new engineered columns
@@ -363,6 +368,11 @@ common_constraints = {
         'Lifestyle_BMI_Interaction': 1,
         'Metabolic_Risk_Score': 1,
         'Metabolic_Strain': 1,
+        'waist_circumference_cm': 1,   # Higher waist -> Higher risk
+        'sedentary_hours_per_day': 1,  # More sedentary -> Higher risk
+        'sugary_drink_frequency': 1,   # More sugar -> Higher risk
+        'processed_food_frequency': 1, # More processed -> Higher risk
+        'fruit_veg_frequency': -1,     # More fruit/veg -> LOWER risk (Use -1 for negative constraint)
         'Genetic_Age_Interaction': 1
 }
 

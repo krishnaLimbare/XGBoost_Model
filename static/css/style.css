@@ -364,3 +364,158 @@ button#predictBtn:active {
     text-align: center;
     padding: 10px;
 }
+
+/* BMI Modal */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+    z-index: 10000;
+    justify-content: center;
+    align-items: center;
+    display: none;
+    /* Default hidden */
+    opacity: 0;
+    /* For fade transition */
+    transition: opacity 0.3s ease;
+}
+
+.modal.hidden {
+    display: none;
+    opacity: 0;
+}
+
+.modal:not(.hidden) {
+    display: flex;
+    opacity: 1;
+}
+
+.modal-content {
+    background: white;
+    width: 90%;
+    max-width: 400px;
+    position: relative;
+    padding: 30px;
+}
+
+.close-modal {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 24px;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.close-modal:hover {
+    color: var(--primary);
+}
+
+/* Consistent Glass Modal */
+.modal-content.glass-card {
+    background: rgba(255, 255, 255, 0.95);
+    /* Slightly more opaque for input readability */
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow);
+}
+
+.unit-toggle {
+    padding: 10px 20px;
+    border: 2px solid var(--primary);
+    background: transparent;
+    color: var(--primary);
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    font-size: 0.95rem;
+}
+
+.unit-toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(78, 84, 200, 0.2);
+}
+
+.unit-toggle.active {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 10px rgba(78, 84, 200, 0.3);
+}
+
+#calcBmiBtn {
+    width: 100%;
+    margin-top: 20px;
+    padding: 14px;
+    background: linear-gradient(to right, var(--primary), var(--secondary));
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#calcBmiBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(78, 84, 200, 0.3);
+}
+
+#calcBmiBtn:active {
+    transform: translateY(0);
+}
+
+/* Hybrid BMI Layout */
+.unit-selector {
+    display: flex;
+    background: #f1f2f6;
+    border-radius: 20px;
+    padding: 3px;
+    gap: 2px;
+}
+
+.unit-option {
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #a4b0be;
+    cursor: pointer;
+    border-radius: 15px;
+    transition: all 0.2s ease;
+}
+
+.unit-option.active {
+    background: white;
+    color: var(--primary);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.hybrid-input {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e1e1e1;
+    border-radius: 10px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.hybrid-input:focus {
+    border-color: var(--primary);
+}
+
+.bmi-result-preview {
+    margin-top: 15px;
+    text-align: center;
+    font-size: 1.1rem;
+    color: var(--dark);
+    font-weight: 600;
+}
+
+.hidden {
+    display: none !important;
+}
