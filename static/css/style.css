@@ -519,3 +519,105 @@ button#predictBtn:active {
 .hidden {
     display: none !important;
 }
+/* ==========================================================================
+   Safety / provenance notices
+   --------------------------------------------------------------------------
+   This model is trained on synthetic labels and is not a medical device.
+   These styles support the disclaimers required in the UI - please keep them.
+   ========================================================================== */
+
+.disclaimer-banner {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    margin: 0 0 28px;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: rgba(255, 244, 229, 0.95);
+    border: 1px solid rgba(217, 119, 6, 0.45);
+    border-left: 4px solid #d97706;
+    color: #7c2d12;
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+
+.disclaimer-banner > i {
+    color: #d97706;
+    font-size: 1.15rem;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.disclaimer-banner > div {
+    min-width: 0;
+}
+
+.disclaimer-banner strong {
+    font-weight: 600;
+}
+
+/* Icon + prose. The prose MUST be wrapped in its own element: any bare inline
+   child (e.g. <strong>) would otherwise become a sibling flex item and break
+   onto its own column. */
+.field-note {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 4px 0 22px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(237, 242, 247, 0.9);
+    border: 1px solid rgba(113, 128, 150, 0.28);
+    color: #4a5568;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.field-note > i {
+    color: #718096;
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.field-note > p {
+    margin: 0;
+    min-width: 0;
+}
+
+.field-note strong {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.result-disclaimer {
+    margin: 18px auto 4px;
+    max-width: 420px;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: #718096;
+    text-align: center;
+}
+
+.result-disclaimer strong {
+    color: #c53030;
+    font-weight: 600;
+}
+
+.page-footer {
+    position: relative;
+    z-index: 1;
+    margin-top: 22px;
+    padding: 0 16px 4px;
+    text-align: center;
+    font-size: 0.76rem;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+@media (max-width: 600px) {
+    .disclaimer-banner,
+    .field-note {
+        font-size: 0.78rem;
+    }
+}

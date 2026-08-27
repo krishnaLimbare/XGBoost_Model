@@ -22,8 +22,23 @@
                     <i class="fa-solid fa-heart-pulse"></i>
                     <h1>Diabi</h1>
                 </div>
-                <p>Advanced AI-Powered Diabetes Risk Assessment</p>
+                <p>Diabetes Risk Screening &mdash; Demonstration Model</p>
             </header>
+
+            <!-- Data provenance / safety notice. Do not remove: this model is
+                 trained on synthetic labels and is not a medical device. -->
+            <div class="disclaimer-banner" role="alert">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                    <strong>Not a medical device &mdash; demonstration only.</strong>
+                    This tool is trained on <strong>synthetic data</strong>: the diabetes
+                    labels were produced by a hand-written statistical formula, not
+                    observed in real patients. Results carry <strong>no clinical
+                    meaning</strong> and must not be used to diagnose, screen, or make
+                    any health decision. Always consult a qualified healthcare
+                    professional.
+                </div>
+            </div>
 
             <form id="predictionForm">
                 <div class="form-grid">
@@ -179,6 +194,19 @@
                     </div>
                 </div>
 
+                <div class="field-note">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <p>
+                        Waist circumference, sedentary hours, sugary drinks, processed
+                        food, fruit &amp; vegetable intake and family history are
+                        collected for completeness but are
+                        <strong>not used by the current model</strong>, which was
+                        trained on age, gender, BMI, hypertension, heart disease, diet
+                        and physical activity only. Changing them will not change your
+                        result.
+                    </p>
+                </div>
+
                 <button type="submit" id="predictBtn">
                     <span>Analyze Risk</span>
                     <i class="fa-solid fa-arrow-right"></i>
@@ -187,6 +215,11 @@
 
 
         </div>
+
+        <footer class="page-footer">
+            Research / educational demonstration. Synthetic data, not clinically
+            validated. Not for medical use.
+        </footer>
     </div>
 
     <!-- Result Modal / Overlay (Moved to root) -->
@@ -200,6 +233,12 @@
                 </div>
                 <p id="probabilityText">0% Risk Probability</p>
             </div>
+
+            <p class="result-disclaimer">
+                Estimated from synthetic training data. <strong>Not a diagnosis and
+                not medical advice.</strong> Consult a healthcare professional for any
+                real assessment of your diabetes risk.
+            </p>
 
             <div id="riskFactors" class="risk-factors">
                 <!-- Impact factors injected here -->

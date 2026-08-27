@@ -3,12 +3,23 @@ Diabetes Screening Flask Application
 =====================================
 Web interface for diabetes risk screening using the trained screening model.
 
-Risk Tiers:
-- Low Risk (< 0.30): Annual wellness check
-- Medium Risk (0.30 - 0.60): Lifestyle counseling, 6-month follow-up
-- High Risk (>= 0.60): Clinical evaluation recommended
+IMPORTANT - READ BEFORE USING
+-----------------------------
+This model is trained on SYNTHETIC data whose labels were generated from a
+hand-written logistic risk formula. It is a software engineering demonstration,
+NOT a clinically validated instrument, and must not be used to inform any real
+medical decision.
 
-Features Used: Age, Gender, BMI, Hypertension, Heart Disease, Diet, Physical Activity
+Feature engineering is NOT defined in this file. It lives in
+src/diabetes_screening_model.py and is shared with the training script so the
+two cannot drift apart. See test_serving_parity.py.
+
+Risk tiers and the decision threshold are read from the model package rather
+than hardcoded, and are expressed as calibrated absolute risk relative to
+population prevalence.
+
+Model inputs (7): Age, Gender, BMI, Hypertension, Heart Disease, Diet,
+Physical Activity.
 """
 
 import os
@@ -16,6 +27,9 @@ import pickle
 import pandas as pd
 import numpy as np
 from flask import Flask, render_template, request, jsonify
+
+# Shared training/serving feature pipeline - single source of truth.
+from src.diabetes_screening_model import build_model_matrix, RAW_FEATURE_COLS
 
 app = Flask(__name__)
 
@@ -37,6 +51,17 @@ feature_names = model_package['feature_names']
 numerical_cols = model_package['numerical_cols']
 risk_thresholds = model_package['risk_thresholds']
 
+# Operating point chosen at training time (max specificity subject to a
+# sensitivity floor). Never hardcode 0.5 here - prevalence is ~13.7%, so 0.5 is
+# not a meaningful cut-point for this problem.
+decision_threshold = model_package.get('decision_threshold', 0.5)
+
+DISCLAIMER = model_package.get(
+    'data_disclaimer',
+    'SYNTHETIC DATA - NOT CLINICALLY VALIDATED. This tool must not be used to '
+    'inform any real medical decision.'
+)
+
 # Initialize Explainer
 try:
     from src.explainability import RiskExplainer
@@ -54,97 +79,30 @@ except Exception as e:
 print(f"✅ Loaded {model_package['model_name']} model")
 print(f"   Features: {len(feature_names)}")
 print(f"   Risk thresholds: Low < {risk_thresholds['low']}, High >= {risk_thresholds['high']}")
+print(f"   Decision threshold: {decision_threshold}")
+print(f"   Calibrated: {model_package.get('calibrated', False)}")
+print(f"   Model inputs: {RAW_FEATURE_COLS}")
+print("\n" + "!" * 70)
+print("  " + DISCLAIMER)
+print("!" * 70 + "\n")
 
-# Categorical features for encoding
-CATEGORICAL_FEATURES = ['gender', 'Age_Group', 'BMI_Category', 'Diet', 'PhysicalActivity']
 
 # =============================================================================
-# FEATURE ENGINEERING (Must match training)
+# FEATURE ENGINEERING
+# -----------------------------------------------------------------------------
+# There is deliberately NO feature engineering code in this file.
+#
+# This module previously kept its own copy of engineer_features(). It drifted
+# from the training version (Age_Band -> Age_Group, Cardio_Risk_Score ->
+# Cardiovascular_Risk), and because missing columns were silently zero-filled,
+# every served prediction ran with Cardio_Risk_Score = 0 and all Age_Band
+# one-hots = 0 - dropping the model's second-largest coefficient and shifting
+# roughly 4% of users into the wrong risk tier.
+#
+# The serving path is now build_model_matrix() in src/diabetes_screening_model.py,
+# the same function the training script uses. Do not reimplement it here.
+# See test_serving_parity.py, which fails if the two paths ever diverge again.
 # =============================================================================
-
-def engineer_features(df_in):
-    """
-    Create clinically meaningful features for diabetes screening.
-    MUST match the function in train_model.py exactly.
-    """
-    df_out = df_in.copy()
-    
-    # ==========================================================================
-    # 1. ENCODE LIFESTYLE FACTORS (Ordinal Encoding for Risk Calc)
-    # ==========================================================================
-    
-    # Diet Score: Unhealthy=2, Mixed=1, Healthy=0
-    diet_map = {'Unhealthy': 2, 'Mixed': 1, 'Healthy': 0}
-    df_out['Diet_Score'] = df_out['Diet'].map(diet_map).fillna(1) 
-    
-    # Activity Score: Sedentary=2, Moderately Active=1, Active=0
-    activity_map = {'Sedentary': 2, 'Moderately Active': 1, 'Active': 0}
-    df_out['Activity_Score'] = df_out['PhysicalActivity'].map(activity_map).fillna(1)
-    
-    # Lifestyle Risk Score (0-4)
-    df_out['Lifestyle_Risk_Score'] = df_out['Diet_Score'] + df_out['Activity_Score']
-
-    # ==========================================================================
-    # 2. AGE & BMI FEATURES
-    # ==========================================================================
-    
-    age_bins = [0, 30, 45, 60, 120]
-    age_labels = ['young', 'middle', 'senior', 'elderly']
-    df_out['Age_Group'] = pd.cut(df_out['age'], bins=age_bins, labels=age_labels, right=False)
-    
-    df_out['Age_Risk_Flag'] = (df_out['age'] >= 45).astype(int)
-    
-    bmi_bins = [0, 18.5, 25, 30, 100]
-    bmi_labels = ['underweight', 'normal', 'overweight', 'obese']
-    df_out['BMI_Category'] = pd.cut(df_out['bmi'], bins=bmi_bins, labels=bmi_labels, right=False)
-    
-    df_out['Obesity_Flag'] = (df_out['bmi'] >= 30).astype(int)
-    
-    # ==========================================================================
-    # 3. COMPOSITE RISK SCORES
-    # ==========================================================================
-    
-    # Cardiovascular Risk Score (0-2)
-    df_out['Cardiovascular_Risk'] = df_out['hypertension'] + df_out['heart_disease']
-    
-    # Genetic Risk 
-    # df_out['Genetic_Risk'] is already passed in input_df, so no need to rename FamilyHistory here 
-    # unless we want consistency. In app inputs we pass 'FamilyHistory' and map it to 'Genetic_Risk'
-    # Let's ensure 'Genetic_Risk' exists.
-    if 'Genetic_Risk' not in df_out.columns and 'FamilyHistory' in df_out.columns:
-        df_out['Genetic_Risk'] = df_out['FamilyHistory']
-    
-    # ==========================================================================
-    # 4. INTERACTIONS
-    # ==========================================================================
-    
-    df_out['Age_BMI_Interaction'] = df_out['age'] * df_out['bmi']
-    
-    # Lifestyle-BMI Interaction
-    df_out['Lifestyle_BMI_Interaction'] = df_out['Lifestyle_Risk_Score'] * df_out['bmi']
-    
-    # Genetic-Age Interaction
-    df_out['Genetic_Age_Interaction'] = df_out['Genetic_Risk'] * df_out['age']
-    
-    # ==========================================================================
-    # 5. METABOLIC RISK SCORE
-    # ==========================================================================
-    
-    df_out['Metabolic_Risk_Score'] = (
-        df_out['Age_Risk_Flag'] + 
-        df_out['Obesity_Flag'] + 
-        df_out['Cardiovascular_Risk'] +
-        df_out['Lifestyle_Risk_Score'] +
-        df_out['Genetic_Risk']
-    )
-    
-    # ==========================================================================
-    # 6. METABOLIC STRAIN
-    # ==========================================================================
-    
-    df_out['Metabolic_Strain'] = np.log1p(df_out['age']) * df_out['bmi']
-    
-    return df_out
 
 
 def assign_risk_tier(probability):
@@ -197,7 +155,12 @@ def predict():
         data = request.json
         print(f"Received prediction request: {data}")
 
-        # 1. Create DataFrame from input
+        # 1. Build the raw input frame.
+        #    Only RAW_FEATURE_COLS reach the model. The form still collects
+        #    waist circumference, sedentary hours, sugary drinks, processed
+        #    food, fruit/veg and family history, but THIS MODEL WAS NOT TRAINED
+        #    ON THEM and they are echoed back as 'ignored_inputs' so the UI can
+        #    be honest about it rather than silently discarding them.
         input_df = pd.DataFrame([{
             'gender': data.get('gender'),
             'age': float(data.get('age')),
@@ -206,34 +169,23 @@ def predict():
             'bmi': float(data.get('bmi')),
             'Diet': data.get('diet'),
             'PhysicalActivity': data.get('physical_activity'),
-            # New Features
-            'waist_circumference_cm': float(data.get('waist_circumference')),
-            'sedentary_hours_per_day': float(data.get('sedentary_hours')),
-            'sugary_drink_frequency': float(data.get('sugary_drinks')),
-            'processed_food_frequency': float(data.get('processed_food')),
-            'fruit_veg_frequency': float(data.get('fruit_veg')),
-            'FamilyHistory': int(data.get('family_history')),
-            'Genetic_Risk': int(data.get('family_history')) # Alias
         }])
 
-        # 2. Apply Feature Engineering
-        input_df = engineer_features(input_df)
+        ignored_inputs = [
+            key for key in (
+                'waist_circumference', 'sedentary_hours', 'sugary_drinks',
+                'processed_food', 'fruit_veg', 'family_history',
+            )
+            if data.get(key) not in (None, '')
+        ]
 
-        # 3. One-Hot Encode
-        input_encoded = pd.get_dummies(input_df, columns=CATEGORICAL_FEATURES, drop_first=True, dtype=int)
+        # 2. Build the model matrix using the SHARED training-time pipeline.
+        #    This raises rather than zero-filling if the pipeline has drifted.
+        input_encoded = build_model_matrix(
+            input_df, feature_names, scaler, numerical_cols
+        )
 
-        # 4. Align Columns with Model
-        for col in feature_names:
-            if col not in input_encoded.columns:
-                input_encoded[col] = 0
-        
-        input_encoded = input_encoded[feature_names]
-
-        # 5. Scale Numerical Features
-        if numerical_cols:
-            input_encoded[numerical_cols] = scaler.transform(input_encoded[numerical_cols])
-
-        # 6. Predict
+        # 3. Predict (probabilities are calibrated - see training notes)
         probability = model.predict_proba(input_encoded)[0][1]
 
         # 7. Assign Risk Tier
@@ -253,7 +205,7 @@ def predict():
 
         return jsonify({
             'status': 'success',
-            'prediction': int(probability >= 0.5),
+            'prediction': int(probability >= decision_threshold),
             'probability': float(probability),
             'result': f"{risk_info['emoji']} {risk_info['tier']}",
             'tier': risk_info['tier'],
@@ -261,7 +213,11 @@ def predict():
             'tier_class': risk_info['tier_class'],
             'description': risk_info['description'],
             'advice': risk_info['recommendation'],
-            'impact_factors': impact_factors
+            'impact_factors': impact_factors,
+            'ignored_inputs': ignored_inputs,
+            'decision_threshold': float(decision_threshold),
+            'calibrated': bool(model_package.get('calibrated', False)),
+            'disclaimer': DISCLAIMER,
         })
 
     except Exception as e:

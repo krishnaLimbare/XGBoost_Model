@@ -27,14 +27,29 @@ class RiskExplainer:
         
         # Define groupings for engineered features
         # Detailed breakdown including new research features
+        # Groups must reference feature names the model was ACTUALLY trained on.
+        # Names here are matched against model feature_names; a name that no
+        # longer exists silently contributes nothing, so keep this in sync with
+        # engineer_features() in diabetes_screening_model.py.
         self.groups = {
-            'Weight & Body Comp': ['bmi', 'waist_circumference_cm', 'Obesity_Flag', 'BMI_Category', 'Age_BMI_Interaction'],
-            'Metabolic Health': ['hypertension', 'heart_disease', 'Cardio_Risk_Score', 'Metabolic_Strain', 'Metabolic_Risk_Score'],
-            'Lifestyle (Activity)': ['sedentary_hours_per_day', 'PhysicalActivity', 'Activity_Score', 'Lifestyle_Risk_Score'],
-            'Lifestyle (Diet)': ['Diet', 'sugary_drink_frequency', 'processed_food_frequency', 'fruit_veg_frequency', 'Diet_Score'],
-            'Genetics & Age': ['age', 'Age_Group', 'Age_Risk_Flag', 'FamilyHistory', 'Genetic_Risk', 'Genetic_Age_Interaction'],
+            'Weight & Body Comp': ['bmi', 'Obesity_Flag', 'BMI_Category'],
+            'Metabolic Health': ['hypertension', 'heart_disease', 'Cardio_Risk_Score'],
+            'Lifestyle (Activity)': ['PhysicalActivity', 'Activity_Score'],
+            'Lifestyle (Diet)': ['Diet', 'Diet_Score'],
+            'Age': ['age', 'Age_Band', 'Age_Risk_Flag', 'Age_BMI_Interaction'],
+            'Combined Lifestyle': ['Lifestyle_Risk_Score'],
             'Gender': ['gender']
         }
+
+        # Fail loudly if a group references a feature the model does not have,
+        # which would mean this file has drifted from the trained pipeline.
+        known = set(feature_names)
+        for group_name, feats in self.groups.items():
+            if not any(any(f in col for col in known) for f in feats):
+                raise ValueError(
+                    f"Explainer group '{group_name}' matches no model feature. "
+                    f"explainability.py has drifted from the trained pipeline."
+                )
 
     def explain(self, input_row_encoded):
         """

@@ -1,85 +1,179 @@
 {
+    "DISCLAIMER": "SYNTHETIC DATA - NOT CLINICALLY VALIDATED. Labels in this dataset were generated from a hand-written logistic risk formula plus Bernoulli noise, not observed from real patients. All metrics below describe how well the model recovers that formula and carry no clinical meaning. This model must not be used to inform any real medical decision.",
     "model_name": "Logistic Regression",
+    "calibrated": true,
+    "calibration": {
+        "brier_score": 0.09343839296105667,
+        "calibration_error": 0.006435630039213882,
+        "mean_predicted": 0.13677745604373265,
+        "observed_prevalence": 0.1369,
+        "bins": [
+            {
+                "bin_lower": 0.0,
+                "bin_upper": 0.1,
+                "count": 11688,
+                "mean_predicted": 0.04697680620987694,
+                "observed_rate": 0.042180013689253934
+            },
+            {
+                "bin_lower": 0.1,
+                "bin_upper": 0.2,
+                "count": 4016,
+                "mean_predicted": 0.1414128009419382,
+                "observed_rate": 0.14641434262948208
+            },
+            {
+                "bin_lower": 0.2,
+                "bin_upper": 0.30000000000000004,
+                "count": 1759,
+                "mean_predicted": 0.24423222491963834,
+                "observed_rate": 0.2404775440591245
+            },
+            {
+                "bin_lower": 0.30000000000000004,
+                "bin_upper": 0.4,
+                "count": 1020,
+                "mean_predicted": 0.34522764648017806,
+                "observed_rate": 0.35
+            },
+            {
+                "bin_lower": 0.4,
+                "bin_upper": 0.5,
+                "count": 655,
+                "mean_predicted": 0.44709358632017165,
+                "observed_rate": 0.46564885496183206
+            },
+            {
+                "bin_lower": 0.5,
+                "bin_upper": 0.6000000000000001,
+                "count": 412,
+                "mean_predicted": 0.5459288648905783,
+                "observed_rate": 0.5898058252427184
+            },
+            {
+                "bin_lower": 0.6000000000000001,
+                "bin_upper": 0.7000000000000001,
+                "count": 232,
+                "mean_predicted": 0.6463492058880976,
+                "observed_rate": 0.6724137931034483
+            },
+            {
+                "bin_lower": 0.7000000000000001,
+                "bin_upper": 0.8,
+                "count": 146,
+                "mean_predicted": 0.7412080127324305,
+                "observed_rate": 0.7671232876712328
+            },
+            {
+                "bin_lower": 0.8,
+                "bin_upper": 0.9,
+                "count": 66,
+                "mean_predicted": 0.8403252456784839,
+                "observed_rate": 0.8333333333333334
+            },
+            {
+                "bin_lower": 0.9,
+                "bin_upper": 1.0,
+                "count": 6,
+                "mean_predicted": 0.905645842163025,
+                "observed_rate": 1.0
+            }
+        ]
+    },
+    "decision_threshold": 0.1415,
+    "threshold_selection": {
+        "threshold": 0.1415,
+        "sensitivity": 0.7,
+        "specificity": 0.7527009413468501,
+        "precision": 0.30980962774342186,
+        "f1": 0.42952004707069,
+        "note": "max specificity subject to sensitivity >= 0.7"
+    },
+    "risk_thresholds": {
+        "low": 0.1369,
+        "high": 0.2737
+    },
+    "training_prevalence": 0.136875,
     "test_metrics": {
-        "accuracy": 0.74765,
-        "precision": 0.3166004765687053,
-        "recall": 0.7279035792549307,
-        "specificity": 0.7507820646506778,
-        "f1_score": 0.4412708956050039,
-        "roc_auc": 0.8149279433309815,
-        "avg_precision": 0.4695644197508525
+        "accuracy": 0.7543,
+        "precision": 0.32228030055537404,
+        "recall": 0.7205989773557341,
+        "specificity": 0.7596454640250261,
+        "f1_score": 0.445372460496614,
+        "roc_auc": 0.8149367027597447,
+        "avg_precision": 0.47016403183273475
     },
     "confusion_matrix": {
-        "tn": 12960,
-        "fp": 4302,
-        "fn": 745,
-        "tp": 1993
+        "tn": 13113,
+        "fp": 4149,
+        "fn": 765,
+        "tp": 1973
     },
     "risk_analysis": {
         "Low": {
-            "count": 8580,
-            "pct_of_total": 42.9,
-            "diabetes_rate": 3.1701631701631703,
-            "mean_probability": 0.18217389157191072
+            "count": 13691,
+            "pct_of_total": 68.455,
+            "diabetes_rate": 5.41961872763129,
+            "mean_probability": 0.05728550526157474
         },
         "Medium": {
-            "count": 6955,
-            "pct_of_total": 34.775,
-            "diabetes_rate": 11.24370956146657,
-            "mean_probability": 0.43442988176861647
+            "count": 3414,
+            "pct_of_total": 17.07,
+            "diabetes_rate": 19.273579379027534,
+            "mean_probability": 0.19323794596249344
         },
         "High": {
-            "count": 4465,
-            "pct_of_total": 22.325,
-            "diabetes_rate": 37.71556550951848,
-            "mean_probability": 0.7595222501674541
+            "count": 2895,
+            "pct_of_total": 14.475,
+            "diabetes_rate": 46.21761658031088,
+            "mean_probability": 0.4461274337901488
         }
     },
     "feature_importance": [
         {
             "Feature": "Age_BMI_Interaction",
-            "Importance": 0.45897458391910456
+            "Importance": 0.4431719241853685
         },
         {
             "Feature": "Cardio_Risk_Score",
-            "Importance": 0.4375727715087839
+            "Importance": 0.43192702786107123
         },
         {
             "Feature": "age",
-            "Importance": 0.36533372303154216
+            "Importance": 0.37758268580086907
         },
         {
             "Feature": "BMI_Category_obese",
-            "Importance": 0.2683787824261842
+            "Importance": 0.28855180790643264
         },
         {
             "Feature": "Obesity_Flag",
-            "Importance": 0.2683787824261842
+            "Importance": 0.28855180790643264
         },
         {
             "Feature": "hypertension",
-            "Importance": 0.25225603013820064
+            "Importance": 0.26346991073683124
         },
         {
             "Feature": "bmi",
-            "Importance": 0.2196111712130166
+            "Importance": 0.2170943759387192
         },
         {
             "Feature": "heart_disease",
-            "Importance": 0.18531674137058707
+            "Importance": 0.16845711712424008
         },
         {
             "Feature": "Lifestyle_Risk_Score",
-            "Importance": 0.1507198418847108
+            "Importance": 0.15568886320766645
         },
         {
             "Feature": "Diet_Score",
-            "Importance": 0.08146642623478947
+            "Importance": 0.09326093937798949
         }
     ],
-    "cv_mean_auc": 0.8023705507556895,
-    "cv_std_auc": 0.00393238947924981,
+    "cv_mean_auc": 0.8023353701076911,
+    "cv_std_auc": 0.003885159487834682,
     "training_samples": 80000,
     "test_samples": 20000,
-    "timestamp": "2026-01-10_13-59-43"
+    "timestamp": "2026-08-27_13-52-04"
 }

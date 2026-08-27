@@ -56,11 +56,41 @@ MODELS_DIR = os.path.join(PROJECT_ROOT, 'models')
 REPORTS_DIR = os.path.join(PROJECT_ROOT, 'reports')
 
 # Create directories if needed
+FIGURES_DIR = os.path.join(REPORTS_DIR, 'screening_figures')
 os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
+os.makedirs(FIGURES_DIR, exist_ok=True)
 
 # Timestamp for this run
 TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+# =============================================================================
+# SHARED FEATURE CONTRACT
+# -----------------------------------------------------------------------------
+# These constants are the single source of truth for the feature pipeline.
+# The serving layer (app.py) imports them rather than re-implementing them, so
+# training and inference cannot drift apart.
+# =============================================================================
+
+# Raw inputs the model accepts
+RAW_FEATURE_COLS = [
+    'age', 'gender', 'bmi', 'hypertension', 'heart_disease', 'Diet', 'PhysicalActivity'
+]
+
+# Columns that get one-hot encoded (names must match engineer_features output)
+ONEHOT_COLS = ['gender', 'Age_Band', 'BMI_Category', 'Diet', 'PhysicalActivity']
+
+# Continuous columns that get standardised
+NUMERICAL_COLS = ['age', 'bmi', 'Age_BMI_Interaction']
+
+# Data provenance / usage warning, embedded in every artifact this script writes
+DATA_DISCLAIMER = (
+    "SYNTHETIC DATA - NOT CLINICALLY VALIDATED. Labels in this dataset were "
+    "generated from a hand-written logistic risk formula plus Bernoulli noise, "
+    "not observed from real patients. All metrics below describe how well the "
+    "model recovers that formula and carry no clinical meaning. This model must "
+    "not be used to inform any real medical decision."
+)
 
 # =============================================================================
 # UTILITY FUNCTIONS
@@ -202,14 +232,10 @@ def prepare_features(df, target_col='diabetes'):
     feature_names : list
         Final feature names after encoding
     """
-    # Columns to use (7 features as specified)
-    FEATURE_COLS = ['age', 'gender', 'bmi', 'hypertension', 'heart_disease', 'Diet', 'PhysicalActivity']
-    
-    # Columns to exclude (biomarkers, genetic, and other non-specified)
-    EXCLUDE_COLS = ['HbA1c_level', 'blood_glucose_level', 'FamilyHistory', 'smoking_history']
-    
-    # Select only required columns
-    df_selected = df[FEATURE_COLS + [target_col]].copy()
+    # Columns to use (shared contract - see RAW_FEATURE_COLS)
+    # Deliberately excluded: HbA1c_level, blood_glucose_level (biomarker leakage),
+    # FamilyHistory, smoking_history (not collected by the screening front-end).
+    df_selected = df[RAW_FEATURE_COLS + [target_col]].copy()
     
     # Apply feature engineering
     df_engineered = engineer_features(df_selected)
@@ -241,8 +267,8 @@ def encode_features(X_train, X_test=None):
     X_train_encoded, X_test_encoded (or just X_train_encoded if no test)
     feature_names : list
     """
-    # Columns to one-hot encode
-    onehot_cols = ['gender', 'Age_Band', 'BMI_Category', 'Diet', 'PhysicalActivity']
+    # Columns to one-hot encode (shared contract)
+    onehot_cols = ONEHOT_COLS
     
     # Create encoded dataframes
     X_train_encoded = pd.get_dummies(X_train, columns=onehot_cols, drop_first=True, dtype=int)
@@ -265,6 +291,88 @@ def encode_features(X_train, X_test=None):
         return X_train_encoded, X_test_encoded, list(X_train_encoded.columns)
     
     return X_train_encoded, list(X_train_encoded.columns)
+
+
+# =============================================================================
+# SERVING PATH (shared by training, app.py and tests)
+# =============================================================================
+
+def build_model_matrix(raw_df, feature_names, scaler=None, numerical_cols=None):
+    """
+    Turn a raw input frame into the exact matrix the trained model expects.
+
+    This is THE serving path. app.py must call this rather than re-implementing
+    feature engineering, otherwise training/serving skew is reintroduced.
+
+    Parameters:
+    -----------
+    raw_df : pd.DataFrame
+        One or more rows containing at least RAW_FEATURE_COLS. Extra columns
+        are ignored.
+    feature_names : list
+        Column names/order the model was trained on.
+    scaler : StandardScaler, optional
+        Fitted scaler. If given, numerical_cols are transformed with it.
+    numerical_cols : list, optional
+        Columns to scale. Defaults to NUMERICAL_COLS.
+
+    Returns:
+    --------
+    pd.DataFrame with exactly `feature_names` as columns, in order.
+
+    Raises:
+    -------
+    KeyError if a required raw input column is missing.
+    """
+    missing = [c for c in RAW_FEATURE_COLS if c not in raw_df.columns]
+    if missing:
+        raise KeyError(f"Missing required input column(s): {missing}")
+
+    engineered = engineer_features(raw_df[RAW_FEATURE_COLS].copy())
+    encoded = pd.get_dummies(engineered, columns=ONEHOT_COLS, drop_first=True, dtype=int)
+
+    # Any one-hot level absent from this batch is legitimately 0. Anything else
+    # missing means the pipeline has drifted, so fail loudly instead of
+    # silently predicting on a zero-filled column.
+    onehot_prefixes = tuple(f"{c}_" for c in ONEHOT_COLS)
+    for col in feature_names:
+        if col not in encoded.columns:
+            if not col.startswith(onehot_prefixes):
+                raise KeyError(
+                    f"Engineered feature '{col}' was not produced by the feature "
+                    f"pipeline. Training and serving code have diverged."
+                )
+            encoded[col] = 0
+
+    encoded = encoded[feature_names].astype(float)
+
+    if scaler is not None:
+        cols = numerical_cols if numerical_cols is not None else NUMERICAL_COLS
+        cols = [c for c in cols if c in encoded.columns]
+        if cols:
+            encoded[cols] = scaler.transform(encoded[cols])
+
+    return encoded
+
+
+def predict_risk(raw_df, model_package):
+    """
+    Convenience wrapper: raw input frame -> array of calibrated probabilities.
+
+    Parameters:
+    -----------
+    raw_df : pd.DataFrame
+        Rows containing RAW_FEATURE_COLS.
+    model_package : dict
+        The unpickled contents of diabetes_screening_model.pkl.
+    """
+    X = build_model_matrix(
+        raw_df,
+        model_package['feature_names'],
+        model_package.get('scaler'),
+        model_package.get('numerical_cols'),
+    )
+    return model_package['model'].predict_proba(X)[:, 1]
 
 
 # =============================================================================
@@ -381,29 +489,191 @@ def clone_model(model):
 
 
 # =============================================================================
+# CALIBRATION
+# -----------------------------------------------------------------------------
+# The model is used to show an absolute risk percentage to a person, so the
+# probabilities must mean what they say. Class re-weighting (class_weight=
+# 'balanced' / scale_pos_weight) inflates predicted probabilities by roughly
+# the inverse prevalence ratio and is therefore NOT used. Imbalance is handled
+# at the decision-threshold stage instead, which leaves ranking (ROC-AUC)
+# unchanged while preserving calibration.
+# =============================================================================
+
+def calibration_report(y_true, y_proba, n_bins=10):
+    """
+    Measure how closely predicted probabilities match observed frequencies.
+
+    Returns:
+    --------
+    dict with brier_score, calibration_error (mean |pred - actual| weighted by
+    bin size), mean_predicted, observed_prevalence, and per-bin detail suitable
+    for plotting a reliability diagram.
+    """
+    y_true = np.asarray(y_true)
+    y_proba = np.asarray(y_proba)
+
+    edges = np.linspace(0.0, 1.0, n_bins + 1)
+    bins = []
+    weighted_error = 0.0
+
+    for i in range(n_bins):
+        lo, hi = edges[i], edges[i + 1]
+        mask = (y_proba >= lo) & (y_proba < hi) if i < n_bins - 1 else (y_proba >= lo)
+        if mask.sum() == 0:
+            continue
+        mean_pred = float(y_proba[mask].mean())
+        observed = float(y_true[mask].mean())
+        bins.append({
+            'bin_lower': float(lo),
+            'bin_upper': float(hi),
+            'count': int(mask.sum()),
+            'mean_predicted': mean_pred,
+            'observed_rate': observed,
+        })
+        weighted_error += mask.sum() * abs(mean_pred - observed)
+
+    return {
+        'brier_score': float(np.mean((y_proba - y_true) ** 2)),
+        'calibration_error': float(weighted_error / len(y_true)),
+        'mean_predicted': float(y_proba.mean()),
+        'observed_prevalence': float(y_true.mean()),
+        'bins': bins,
+    }
+
+
+def plot_reliability_curve(calib, output_path, title='Calibration (Reliability) Curve'):
+    """Save a reliability diagram from a calibration_report() result."""
+    bins = calib['bins']
+    if not bins:
+        return
+
+    xs = [b['mean_predicted'] for b in bins]
+    ys = [b['observed_rate'] for b in bins]
+    sizes = [b['count'] for b in bins]
+    max_size = max(sizes) if sizes else 1
+
+    fig, ax = plt.subplots(figsize=(7, 7))
+    ax.plot([0, 1], [0, 1], 'k--', linewidth=1, label='Perfect calibration')
+    ax.plot(xs, ys, 'o-', color='#2b6cb0', linewidth=2, label='Model')
+    ax.scatter(xs, ys, s=[80 * n / max_size + 20 for n in sizes],
+               color='#2b6cb0', alpha=0.5, zorder=3)
+    ax.axhline(calib['observed_prevalence'], color='#a0aec0', linestyle=':',
+               linewidth=1, label=f"Prevalence ({calib['observed_prevalence']:.3f})")
+
+    ax.set_xlabel('Mean predicted probability')
+    ax.set_ylabel('Observed frequency')
+    ax.set_title(f"{title}\n"
+                 f"Brier={calib['brier_score']:.4f}  "
+                 f"CalErr={calib['calibration_error']:.4f}")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.legend(loc='upper left')
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=120)
+    plt.close(fig)
+
+
+def tune_decision_threshold(y_true, y_proba, min_sensitivity=0.70):
+    """
+    Choose the binary decision threshold on calibrated probabilities.
+
+    Imbalance is handled here rather than by re-weighting the training data.
+    Picks the threshold that maximises specificity subject to sensitivity
+    (recall) staying at or above `min_sensitivity` - the usual shape of a
+    screening requirement: catch most cases, then reduce false alarms as far as
+    that constraint allows. Falls back to best-F1 if the constraint is
+    unreachable.
+
+    Returns:
+    --------
+    (threshold, info_dict)
+    """
+    y_true = np.asarray(y_true)
+    candidates = np.unique(np.round(y_proba, 4))
+    candidates = candidates[(candidates > 0.0) & (candidates < 1.0)]
+
+    best = None
+    best_f1 = None
+
+    for t in candidates:
+        pred = (y_proba >= t).astype(int)
+        tp = int(((pred == 1) & (y_true == 1)).sum())
+        fp = int(((pred == 1) & (y_true == 0)).sum())
+        fn = int(((pred == 0) & (y_true == 1)).sum())
+        tn = int(((pred == 0) & (y_true == 0)).sum())
+
+        sens = tp / (tp + fn) if (tp + fn) else 0.0
+        spec = tn / (tn + fp) if (tn + fp) else 0.0
+        prec = tp / (tp + fp) if (tp + fp) else 0.0
+        f1 = 2 * prec * sens / (prec + sens) if (prec + sens) else 0.0
+
+        record = {'threshold': float(t), 'sensitivity': sens,
+                  'specificity': spec, 'precision': prec, 'f1': f1}
+
+        if best_f1 is None or f1 > best_f1['f1']:
+            best_f1 = record
+        if sens >= min_sensitivity and (best is None or spec > best['specificity']):
+            best = record
+
+    if best is None:
+        best = best_f1
+        best['note'] = (f'min_sensitivity={min_sensitivity} unreachable; '
+                        f'fell back to best-F1 threshold')
+    else:
+        best['note'] = f'max specificity subject to sensitivity >= {min_sensitivity}'
+
+    return best['threshold'], best
+
+
+def derive_risk_thresholds(y_proba, prevalence):
+    """
+    Derive Low/Medium/High cut-points as absolute-risk multiples of prevalence.
+
+    Because probabilities are calibrated, these are interpretable as real
+    absolute risk rather than arbitrary round numbers:
+      - Low    : predicted risk below the population average
+      - Medium : between 1x and 2x the population average
+      - High   : at or above 2x the population average
+
+    Returns:
+    --------
+    dict with 'low' and 'high' cut-points.
+    """
+    low = float(np.clip(prevalence, 0.01, 0.98))
+    high = float(np.clip(prevalence * 2.0, low + 0.01, 0.99))
+    return {'low': round(low, 4), 'high': round(high, 4)}
+
+
+# =============================================================================
 # RISK STRATIFICATION
 # =============================================================================
 
-def assign_risk_tier(probability):
+def assign_risk_tier(probability, thresholds=None):
     """
-    Assign risk tier based on predicted probability.
+    Assign risk tier based on calibrated predicted probability.
     
-    Thresholds:
-    -----------
-    - Low Risk:    0.00 - 0.30 (Annual wellness check)
-    - Medium Risk: 0.30 - 0.60 (Lifestyle counseling, 6-month follow-up)
-    - High Risk:   0.60 - 1.00 (Clinical evaluation recommended)
+    Cut-points are derived from population prevalence at training time (see
+    derive_risk_thresholds) and stored in the model package, rather than being
+    hardcoded round numbers. Because probabilities are calibrated, the tiers
+    correspond to real absolute risk relative to the population average.
     
     Parameters:
     -----------
     probability : float
-        Predicted probability of diabetes
+        Calibrated predicted probability of diabetes
+    thresholds : dict, optional
+        {'low': float, 'high': float}. Defaults to the prevalence of the
+        training data (~0.137) and twice that.
         
     Returns:
     --------
     dict : Risk tier information
     """
-    if probability < 0.30:
+    if thresholds is None:
+        thresholds = {'low': 0.137, 'high': 0.274}
+
+    if probability < thresholds['low']:
         return {
             'tier': 'Low Risk',
             'tier_code': 'low',
@@ -411,7 +681,7 @@ def assign_risk_tier(probability):
             'description': 'Low likelihood of diabetes based on current risk factors.',
             'recommendation': 'Maintain healthy lifestyle. Annual wellness check recommended.'
         }
-    elif probability < 0.60:
+    elif probability < thresholds['high']:
         return {
             'tier': 'Medium Risk',
             'tier_code': 'medium',
@@ -429,7 +699,7 @@ def assign_risk_tier(probability):
         }
 
 
-def analyze_risk_distribution(y_true, y_proba):
+def analyze_risk_distribution(y_true, y_proba, thresholds=None):
     """
     Analyze how risk tiers align with actual outcomes.
     
@@ -444,11 +714,14 @@ def analyze_risk_distribution(y_true, y_proba):
     --------
     dict : Risk distribution analysis
     """
+    if thresholds is None:
+        thresholds = {'low': 0.137, 'high': 0.274}
+
     tiers = []
     for p in y_proba:
-        if p < 0.30:
+        if p < thresholds['low']:
             tiers.append('Low')
-        elif p < 0.60:
+        elif p < thresholds['high']:
             tiers.append('Medium')
         else:
             tiers.append('High')
@@ -482,7 +755,10 @@ def main():
     """Run the complete diabetes screening model pipeline."""
     
     print_section("DIABETES SCREENING MODEL PIPELINE")
-    print(f"Run timestamp: {TIMESTAMP}")
+    print("\n" + "!" * 70)
+    print("  " + DATA_DISCLAIMER.replace('. ', '.\n  '))
+    print("!" * 70)
+    print(f"\nRun timestamp: {TIMESTAMP}")
     print(f"Output directory: {REPORTS_DIR}")
     
     # =========================================================================
@@ -542,10 +818,20 @@ def main():
     print_section("STEP 4: 5-FOLD CROSS-VALIDATION")
     
     # Define models to compare
+    # NOTE ON IMBALANCE HANDLING
+    # -------------------------------------------------------------------------
+    # class_weight='balanced' and scale_pos_weight are deliberately NOT used.
+    # They rescale the training distribution to 50/50, which inflates every
+    # predicted probability by roughly the inverse prevalence ratio. Since this
+    # model surfaces an absolute risk percentage to a person, that
+    # miscalibration is a correctness bug, not a tuning choice.
+    #
+    # Ranking quality (ROC-AUC) is unaffected by re-weighting, so nothing is
+    # lost: imbalance is handled downstream by tune_decision_threshold(), which
+    # moves the operating point instead of distorting the probabilities.
     models = {
         'Logistic Regression': LogisticRegression(
             max_iter=1000,
-            class_weight='balanced',
             random_state=42,
             solver='lbfgs'
         ),
@@ -553,10 +839,8 @@ def main():
             n_estimators=100,
             max_depth=5,
             learning_rate=0.1,
-            scale_pos_weight=target_counts[0]/target_counts[1],  # Handle imbalance
             random_state=42,
-            eval_metric='logloss',
-            use_label_encoder=False
+            eval_metric='logloss'
         )
     }
     
@@ -624,10 +908,35 @@ def main():
     # =========================================================================
     print_section("STEP 7: TEST SET EVALUATION")
     
-    y_pred = best_model.predict(X_test_encoded)
+    # Tune the decision threshold on the TRAINING set only, so the test set
+    # stays a clean estimate of the deployed operating point.
+    train_proba = best_model.predict_proba(X_train_encoded)[:, 1]
+    decision_threshold, threshold_info = tune_decision_threshold(
+        y_train, train_proba, min_sensitivity=0.70
+    )
+    print(f"\n[*] Decision threshold tuned on training set: {decision_threshold:.4f}")
+    print(f"    Rule: {threshold_info['note']}")
+    print(f"    Train sensitivity={threshold_info['sensitivity']:.4f}  "
+          f"specificity={threshold_info['specificity']:.4f}")
+
     y_proba = best_model.predict_proba(X_test_encoded)[:, 1]
-    
+    y_pred = (y_proba >= decision_threshold).astype(int)
+
     test_metrics = calculate_all_metrics(y_test, y_pred, y_proba)
+
+    # ---- Calibration: do the probabilities mean what they say? ----
+    calib = calibration_report(y_test, y_proba, n_bins=10)
+    print("\n[*] Calibration Check:")
+    print(f"    Brier score:          {calib['brier_score']:.4f}")
+    print(f"    Calibration error:    {calib['calibration_error']:.4f}")
+    print(f"    Mean predicted:       {calib['mean_predicted']:.4f}")
+    print(f"    Observed prevalence:  {calib['observed_prevalence']:.4f}")
+    print("    (mean predicted should sit close to observed prevalence)")
+    print(f"\n    {'Predicted':<22}{'N':>8}{'Mean pred':>12}{'Observed':>12}")
+    for b in calib['bins']:
+        label = f"[{b['bin_lower']:.1f}, {b['bin_upper']:.1f})"
+        print(f"    {label:<22}{b['count']:>8,}{b['mean_predicted']:>12.3f}"
+              f"{b['observed_rate']:>12.3f}")
     
     print("\n📊 Test Set Performance:")
     print("-" * 50)
@@ -652,7 +961,19 @@ def main():
     # =========================================================================
     print_section("STEP 8: RISK STRATIFICATION ANALYSIS")
     
-    risk_analysis = analyze_risk_distribution(y_test.values, y_proba)
+    # Cut-points derived from training prevalence, not hardcoded round numbers.
+    prevalence = float(y_train.mean())
+    risk_thresholds = derive_risk_thresholds(train_proba, prevalence)
+    print(f"\n[*] Risk cut-points derived from training prevalence "
+          f"({prevalence:.4f}):")
+    print(f"    Low    : predicted risk <  {risk_thresholds['low']:.3f}  "
+          f"(below population average)")
+    print(f"    Medium : {risk_thresholds['low']:.3f} - {risk_thresholds['high']:.3f}  "
+          f"(1x - 2x population average)")
+    print(f"    High   : predicted risk >= {risk_thresholds['high']:.3f}  "
+          f"(2x or more population average)")
+
+    risk_analysis = analyze_risk_distribution(y_test.values, y_proba, risk_thresholds)
     
     print("\n📊 Risk Tier Distribution (Test Set):")
     print("-" * 70)
@@ -665,10 +986,11 @@ def main():
     
     print("-" * 70)
     
-    print("\n✅ Risk Tier Thresholds:")
-    print("   • Low Risk:    Probability < 0.30")
-    print("   • Medium Risk: Probability 0.30 - 0.60")
-    print("   • High Risk:   Probability >= 0.60")
+    print("\n[*] Risk Tier Thresholds (calibrated absolute risk):")
+    print(f"   - Low Risk:    Probability <  {risk_thresholds['low']:.3f}")
+    print(f"   - Medium Risk: Probability {risk_thresholds['low']:.3f} - "
+          f"{risk_thresholds['high']:.3f}")
+    print(f"   - High Risk:   Probability >= {risk_thresholds['high']:.3f}")
     
     # =========================================================================
     # STEP 9: FEATURE IMPORTANCE
@@ -702,15 +1024,25 @@ def main():
     
     # Save model
     model_path = os.path.join(MODELS_DIR, 'diabetes_screening_model.pkl')
+    import sklearn
     with open(model_path, 'wb') as f:
         pickle.dump({
             'model': best_model,
             'scaler': scaler,
             'feature_names': feature_names,
             'numerical_cols': numerical_cols,
-            'feature_means': feature_means,  # <--- NEW: For explainability
+            'feature_means': feature_means,  # For explainability
             'model_name': best_model_name,
-            'risk_thresholds': {'low': 0.30, 'high': 0.60}
+            'risk_thresholds': risk_thresholds,
+            'decision_threshold': decision_threshold,
+            'threshold_info': threshold_info,
+            'calibrated': True,
+            'calibration': {k: v for k, v in calib.items() if k != 'bins'},
+            'training_prevalence': prevalence,
+            'raw_feature_cols': RAW_FEATURE_COLS,
+            'data_disclaimer': DATA_DISCLAIMER,
+            'sklearn_version': sklearn.__version__,
+            'trained_at': TIMESTAMP,
         }, f)
     print(f"✅ Saved: {model_path}")
     
@@ -718,7 +1050,18 @@ def main():
     cv_results_path = os.path.join(REPORTS_DIR, 'screening_cv_results.json')
     with open(cv_results_path, 'w') as f:
         # Convert to serializable format
-        cv_serializable = {}
+        cv_serializable = {
+            'DISCLAIMER': DATA_DISCLAIMER,
+            'NOTE_ON_CV_METRICS': (
+                'CV precision/recall/accuracy/specificity below are computed at '
+                'the default 0.5 cut-point, which is NOT the deployed operating '
+                'point. Prevalence is ~13.7%, so 0.5 is far into the '
+                'high-specificity/low-sensitivity corner and these figures will '
+                'look pessimistic. Model selection uses ROC-AUC, which is '
+                'threshold-independent. The deployed threshold is tuned '
+                'separately - see decision_threshold in screening_evaluation.json.'
+            ),
+        }
         for model_name, results in cv_results_all.items():
             cv_serializable[model_name] = {
                 k: float(v) if isinstance(v, (np.float64, np.float32)) else v
@@ -731,7 +1074,14 @@ def main():
     # Save evaluation results
     eval_path = os.path.join(REPORTS_DIR, 'screening_evaluation.json')
     eval_results = {
+        'DISCLAIMER': DATA_DISCLAIMER,
         'model_name': best_model_name,
+        'calibrated': True,
+        'calibration': calib,
+        'decision_threshold': decision_threshold,
+        'threshold_selection': threshold_info,
+        'risk_thresholds': risk_thresholds,
+        'training_prevalence': prevalence,
         'test_metrics': {k: float(v) if isinstance(v, (np.float64, np.float32)) else v 
                         for k, v in test_metrics.items() if k != 'confusion_matrix'},
         'confusion_matrix': cm,
@@ -749,6 +1099,11 @@ def main():
         json.dump(eval_results, f, indent=4, default=str)
     print(f"✅ Saved: {eval_path}")
     
+    # Save reliability diagram
+    reliability_path = os.path.join(FIGURES_DIR, 'calibration_reliability_curve.png')
+    plot_reliability_curve(calib, reliability_path)
+    print(f"[+] Saved: {reliability_path}")
+
     # Save feature importance
     importance_path = os.path.join(REPORTS_DIR, 'feature_importance.csv')
     importance_df.to_csv(importance_path, index=False)
@@ -779,15 +1134,20 @@ def main():
   • Test ROC-AUC: {test_metrics['roc_auc']:.4f}
   • Test F1-Score: {test_metrics['f1_score']:.4f}
   
-📈 PERFORMANCE BALANCE:
+CALIBRATION:
+  - Brier score: {calib['brier_score']:.4f}
+  - Mean predicted risk: {calib['mean_predicted']:.4f} vs observed prevalence {calib['observed_prevalence']:.4f}
+  - Decision threshold: {decision_threshold:.4f} ({threshold_info['note']})
+
+PERFORMANCE BALANCE:
   • Sensitivity (Recall): {test_metrics['recall']*100:.1f}%
   • Specificity: {test_metrics['specificity']*100:.1f}%
   • Balanced for screening (not extreme sensitivity)
 
 🎯 RISK STRATIFICATION:
-  • Low Risk (< 0.30): {risk_analysis.get('Low', {}).get('pct_of_total', 0):.1f}% of population
-  • Medium Risk (0.30-0.60): {risk_analysis.get('Medium', {}).get('pct_of_total', 0):.1f}% of population  
-  • High Risk (>= 0.60): {risk_analysis.get('High', {}).get('pct_of_total', 0):.1f}% of population
+  - Low Risk (< {risk_thresholds['low']:.3f}): {risk_analysis.get('Low', {}).get('pct_of_total', 0):.1f}% of population
+  - Medium Risk ({risk_thresholds['low']:.3f}-{risk_thresholds['high']:.3f}): {risk_analysis.get('Medium', {}).get('pct_of_total', 0):.1f}% of population
+  - High Risk (>= {risk_thresholds['high']:.3f}): {risk_analysis.get('High', {}).get('pct_of_total', 0):.1f}% of population
 
 💾 OUTPUTS:
   ✅ diabetes_screening_model.pkl
